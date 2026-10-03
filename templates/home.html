@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}BMAC — Home{% endblock %}
+{% block content %}
+
+<div style="text-align: center; padding: 20px 0 10px;">
+    <div style="display: inline-flex; align-items: center; gap: 10px; background: #eef3fb; padding: 6px 16px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #2e5fa3; letter-spacing: 0.03em;">
+        ⚡ LIVE TRACEABILITY SYSTEM
+    </div>
+    <h1 style="font-size: 34px; margin: 16px 0 8px;">Battery Materials &amp; Cell Traceability</h1>
+    <p style="color: #667; font-size: 15px; max-width: 560px; margin: 0 auto;">
+        Full-chain visibility from raw electrode material through coating, cell assembly, and testing —
+        every relationship enforced at the database level.
+    </p>
+</div>
+{% if request.session.get('is_admin') %}
+<div style="text-align: center; margin-bottom: 20px;">
+    <a href="/admin/users/new" style="font-size: 13px; color: #2e5fa3;">+ Create a new user</a>
+</div>
+{% endif %}
+
+<div style="display: flex; gap: 24px; margin-top: 32px;">
+
+    <!-- Sidebar -->
+    <div style="width: 200px; flex-shrink: 0; background: linear-gradient(180deg, #1b3a6b, #14294d); border-radius: 16px; padding: 24px 0; height: fit-content; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <div style="padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
+            <div style="color: white; font-weight: 700; font-size: 15px;">Your Projects</div>
+            <div style="color: rgba(255,255,255,0.5); font-size: 12px; margin-top: 2px;">Live overview</div>
+        </div>
+        <a class="sidebar-link active" data-target="overview">📊 Overview</a>
+        <div id="projectSidebarLinks"></div>
+    </div>
+
+    <!-- Main panel area -->
+    <div style="flex: 1;">
+
+        <div id="panel-overview" class="home-panel">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;" id="statCards"></div>
+
+            <div class="panel-grid" style="margin-top: 20px;">
+                <div class="result">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="margin: 0;">Records per Table</h4>
+                        <span class="chip">Live</span>
+                    </div>
+                    <canvas id="chartOverviewDoughnut"></canvas>
+                </div>
+                <div class="result">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="margin: 0;">Formation Capacity (SLP)</h4>
+                        <span class="chip">Live</span>
+                    </div>
+                    <canvas id="chartOverviewBar"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="projectPanels"></div>
+
+        <div style="margin-top: 24px;">
+            <div class="result">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <h4 style="margin: 0;">Traceability Graph</h4>
+                    <span class="chip">Interactive</span>
+                </div>
+                <p style="margin: 0 0 12px; font-size: 12px; color: #999;">Drag nodes, scroll to zoom, hover for full record IDs</p>
+                <div id="network" style="width: 100%; height: 320px; background: #0a0e1a; border-radius: 14px;"></div>
+                <a href="/graph" style="font-size: 13px; color: #2e5fa3; display: inline-block; margin-top: 12px;">View full graph &rarr;</a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    .sidebar-link {
+        display: block; padding: 10px 20px; color: rgba(255,255,255,0.7);
+        font-size: 14px; font-weight: 500; text-decoration: none; border-left: 3px solid transparent; cursor: pointer;
+    }
+    .sidebar-link:hover { background: rgba(255,255,255,0.05); color: white; }
+    .sidebar-link.active { background: rgba(255,255,255,0.08); color: white; border-left-color: #4a90d9; }
+    .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .result h4 { margin: 0 0 12px; font-size: 14px; color: #333; }
+    .result {
+        background: white; border-radius: 12px; padding: 18px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #eef1f7;
+    }
+    .chip {
+        font-size: 10px; font-weight: 700; color: #2e5fa3; background: #eef3fb;
+        padding: 3px 9px; border-radius: 999px; letter-spacing: 0.03em;
+    }
+    .stat-card {
+        background: white; border-radius: 12px; padding: 14px 16px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #eef1f7;
+        display: flex; align-items: center; gap: 12px;
+    }
+    .stat-icon-chip {
+        width: 40px; height: 40px; border-radius: 10px; display: flex;
+        align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+    }
+</style>
+
+<script>
+    const palette = ['#2e5fa3', '#4a90d9', '#7ab8e8', '#a8d4f0', '#1b3a6b'];
+    const charts = {};
+
+    function makeChart(canvasId, type, labels, values, label) {
+        if (charts[canvasId]) charts[canvasId].destroy();
+        if (!labels || labels.length === 0) return;
+        charts[canvasId] = new Chart(document.getElementById(canvasId), {
+            type: type,
+            data: { labels, datasets: [{ label, data: values,
+                backgroundColor: type === 'doughnut' ? palette : '#2e5fa3',
+                borderRadius: type === 'bar' ? 6 : 0 }] },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: type === 'doughnut' }, tooltip: { enabled: true } },
+                scales: type !== 'doughnut' ? { y: { beginAtZero: true } } : {}
+            }
+        });
+    }
+
+    function showPanel(target) {
+        document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('.home-panel, .project-panel').forEach(p => p.style.display = 'none');
+        const link = document.querySelector(`.sidebar-link[data-target="${target}"]`);
+        if (link) link.classList.add('active');
+        const panel = document.getElementById('panel-' + target);
+        if (panel) panel.style.display = 'block';
+    }
+
+    async function loadOverview() {
+        const rpt = await (await fetch('/api/chart/records-per-table')).json();
+        const iconConfig = {
+            Materials:    { icon: '🧪', bg: '#eaf2fd', color: '#2e5fa3' },
+            Coatings:     { icon: '🧫', bg: '#e9f9f0', color: '#22a35c' },
+            SLP:          { icon: '🔋', bg: '#fff4e6', color: '#e08a1e' },
+            'Coin Cells': { icon: '🪙', bg: '#fdeef0', color: '#d1476a' },
+            MLP:          { icon: '📦', bg: '#f3edfd', color: '#7c4dff' }
+        };
+        document.getElementById('statCards').innerHTML = rpt.labels.map((l, i) => {
+            const cfg = iconConfig[l] || { icon: '•', bg: '#f1f3f8', color: '#556' };
+            return `
+            <div class="stat-card">
+                <div class="stat-icon-chip" style="background: ${cfg.bg};">${cfg.icon}</div>
+                <div>
+                    <div style="font-size: 22px; font-weight: 800; color: #1a1a2e; line-height: 1;">${rpt.values[i]}</div>
+                    <div style="font-size: 12px; color: #888; margin-top: 4px;">${l}</div>
+                </div>
+            </div>`;
+        }).join('');
+        makeChart('chartOverviewDoughnut', 'doughnut', rpt.labels, rpt.values, 'Records');
+
+        const fc = await (await fetch('/api/chart/formation-capacity')).json();
+        makeChart('chartOverviewBar', 'bar', fc.labels, fc.values, 'mAh');
+    }
+
+    async function loadProjects() {
+        const data = await (await fetch('/api/chart/my-projects')).json();
+        const sidebar = document.getElementById('projectSidebarLinks');
+        const panels = document.getElementById('projectPanels');
+
+        if (data.projects.length === 0) {
+            sidebar.innerHTML = '<div style="padding: 10px 20px; color: rgba(255,255,255,0.5); font-size: 13px;">No projects assigned</div>';
+            return;
+        }
+
+        data.projects.forEach(p => {
+            const slug = p.project.toLowerCase().replace(/\s+/g, '-');
+
+            const link = document.createElement('a');
+            link.className = 'sidebar-link';
+            link.dataset.target = 'project-' + slug;
+            link.textContent = '📁 ' + p.project;
+            link.addEventListener('click', () => showPanel('project-' + slug));
+            sidebar.appendChild(link);
+
+            const panel = document.createElement('div');
+            panel.id = 'panel-project-' + slug;
+            panel.className = 'project-panel';
+            panel.style.display = 'none';
+
+            const labels = ['Coatings', 'SLP', 'Coin Cell', 'MLP'];
+            const values = [p.coatings, p.slp, p.coincell, p.mlp];
+            const cardConfig = [
+                { icon: '🧫', bg: '#e9f9f0', color: '#22a35c', label: 'Coatings', value: p.coatings },
+                { icon: '🔋', bg: '#fff4e6', color: '#e08a1e', label: 'SLP', value: p.slp },
+                { icon: '🪙', bg: '#fdeef0', color: '#d1476a', label: 'Coin Cell', value: p.coincell },
+                { icon: '📦', bg: '#f3edfd', color: '#7c4dff', label: 'MLP', value: p.mlp }
+            ];
+
+            panel.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                    ${cardConfig.map(c => `
+                        <div class="stat-card">
+                            <div class="stat-icon-chip" style="background: ${c.bg};">${c.icon}</div>
+                            <div>
+                                <div style="font-size: 22px; font-weight: 800; color: #1a1a2e; line-height: 1;">${c.value}</div>
+                                <div style="font-size: 12px; color: #888; margin-top: 4px;">${c.label}</div>
+                            </div>
+                        </div>`).join('')}
+                </div>
+                <div class="result" style="margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="margin: 0;">${p.project} — Record Breakdown</h4>
+                        <span class="chip">${p.total} total</span>
+                    </div>
+                    <canvas id="chartProject-${slug}"></canvas>
+                </div>
+            `;
+            panels.appendChild(panel);
+            makeChart('chartProject-' + slug, 'doughnut', labels, values, p.project);
+        });
+    }
+
+    document.querySelector('.sidebar-link[data-target="overview"]').addEventListener('click', () => showPanel('overview'));
+
+    loadOverview();
+    loadProjects();
+
+    // --- Traceability graph ---
+    function shortLabel(id, group) {
+        if (group === 'project') return id.replace('PROJECT-', '');
+        if (group === 'material') return id;
+        if (group === 'coating') return id.split('-').slice(-1)[0].replace('C', 'Coat ');
+        if (group === 'slp') return 'SLP-' + id.split('-SLP-')[1];
+        if (group === 'coincell') return 'CC-' + id.split('-CC-')[1];
+        return id;
+    }
+
+    const groupColors = {
+                material: { background: '#00e5ff', border: '#00b8cc' },
+                coating:  { background: '#7c4dff', border: '#5c35cc' },
+                slp:      { background: '#00ff9d', border: '#00cc7d' },
+                coincell: { background: '#ff6ec7', border: '#cc5599' },
+                mlp:      { background: '#ffb800', border: '#cc9300' },
+                project:  { background: '#ffffff', border: '#888888' }
+            };
+            // Assign level to groups for easier understanding
+            const groupLevels = {
+                material: 0,
+                coating: 1,
+                slp: 2,
+                coincell: 2,
+                mlp: 2,
+                project: 3
+            };
+
+    fetch('/api/graph')
+        .then(res => res.json())
+        .then(data => {
+            const nodes = new vis.DataSet(data.nodes.map(n => ({
+                ...n,
+                level: groupLevels[n.group],   // force same-group vertical alignment
+                label: shortLabel(n.id, n.group),
+                title: n.id + (n.title ? ' — ' + n.title : ''),
+                shape: 'dot',
+                size: n.group === 'project' ? 22 : 12,
+                color: { background: groupColors[n.group].background, border: groupColors[n.group].border },
+                font: { color: '#e8e8f0', size: n.group === 'project' ? 12 : 10, bold: n.group === 'project' },
+                shadow: { enabled: true, color: groupColors[n.group].background, size: 8, x: 0, y: 0 }
+            })));
+            
+            const edges = new vis.DataSet(data.edges.map(e => ({
+                ...e,
+                color: { color: 'rgba(120,140,200,0.35)', highlight: '#00e5ff' },
+                width: 1.2,
+                smooth: { type: 'cubicBezier', roundness: 0.4 }
+            })));
+            new vis.Network(document.getElementById('network'), { nodes, edges }, {
+                layout: { hierarchical: { direction: 'UD', sortMethod: 'hubsize', levelSeparation: 90, nodeSpacing: 40 } },
+                physics: { hierarchicalRepulsion: { nodeDistance: 60 } },
+                interaction: { hover: true, tooltipDelay: 100, dragView: true, zoomView: true }
+            });
+        });
+</script>
+{% endblock %}

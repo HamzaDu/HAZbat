@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ record_id }} — Card{% endblock %}
+{% block content %}
+<div style="max-width: 420px; margin: 0 auto; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.15);">
+    <div style="background: linear-gradient(135deg, #1b3a6b, #2e5fa3); color: white; padding: 24px;">
+        <h1 style="margin: 0; font-size: 24px;">{{ record_id }}</h1>
+        <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.85;">{{ record_type | capitalize }}</p>
+    </div>
+
+    <div style="padding: 22px; background: white;">
+        {% for key, value in record.items() %}
+        <div class="row"><span class="label">{{ key }}</span><span class="value">{{ value if value is not none else "—" }}</span></div>
+        {% endfor %}
+    </div>
+
+    {% if chain %}
+<div style="background: #f5f8fc; padding: 10px 22px; font-size: 13px; font-weight: 700; color: #1b3a6b; display: flex; justify-content: space-between; align-items: center;">
+    <span>Traceability chain</span>
+    <a href="/graph" style="font-size: 11px; font-weight: 500; color: #2e5fa3;">Open full graph &rarr;</a>
+</div>
+<div id="miniGraph" style="width: 100%; height: 220px; background: #0a0e1a;"></div>
+{% endif %}
+
+    <div style="padding: 20px; background: #f7f7f7; text-align: center;">
+        <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR code for {{ record_id }}" style="width: 140px; height: 140px;">
+        <p style="font-size: 11px; color: #999; margin-top: 8px;">Scan to open this card</p>
+        {% if record_type in ("slp", "coincell", "mlp") %}
+        <a href="/card/{{ record_id }}/lineage" style="display: inline-block; margin-top: 6px; font-size: 14px; font-weight: 600; color: #2e5fa3;">Open lineage &amp; passport card →</a>
+        {% endif %}
+    </div>
+</div>
+<div id="cyclingSection" style="display:none; margin-top: 24px;">
+    <div class="result">
+        <h4>Cycling Data</h4>
+        <canvas id="cyclingChart"></canvas>
+    </div>
+</div>
+
+<script>
+    // Capacity per discharge from the latest uploaded cycling file (same data as the graph page)
+    fetch(`/api/cycling/{{ record_id }}/summary`)
+        .then(res => {
+            if (!res.ok) throw new Error('No cycling data');
+            return res.json();
+        })
+        .then(data => {
+            const discharge = data.discharge_capacity_mah || [];
+            if (!discharge.length) return;
+            document.getElementById('cyclingSection').style.display = 'block';
+            new Chart(document.getElementById('cyclingChart'), {
+                type: 'line',
+                data: {
+                    labels: discharge.map((_, i) => i + 1),
+                    datasets: [{
+                        label: 'Discharge capacity (mAh)',
+                        data: discharge,
+                        borderColor: '#2e5fa3',
+                        backgroundColor: 'rgba(46,95,163,0.08)',
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        x: { title: { display: true, text: 'Discharge #' } },
+                        y: { title: { display: true, text: 'Capacity (mAh)' } }
+                    }
+                }
+            });
+        })
+        .catch(() => {
+            // No cycling data for this record — section stays hidden
+        });
+</script>
+
+<script>
+    function shortLabel(id, group) {
+        if (group === 'material') return id;
+        if (group === 'coating') return id.split('-').slice(-1)[0].replace('C', 'Coat ');
+        if (group === 'slp') return 'SLP-' + id.split('-SLP-')[1];
+        if (group === 'coincell') return 'CC-' + id.split('-CC-')[1];
+        return id;
+    }
+    fetch('/api/graph/{{ record_id }}')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.nodes || data.nodes.length === 0) return;
+            const groupColors = {
+                material: { background: '#00e5ff', border: '#00b8cc' },
+                coating:  { background: '#7c4dff', border: '#5c35cc' },
+                slp:      { background: '#00ff9d', border: '#00cc7d' },
+                coincell: { background: '#ff6ec7', border: '#cc5599' },
+                mlp:      { background: '#ffb800', border: '#cc9300' }
+            };
+            const nodes = new vis.DataSet(data.nodes.map(n => ({
+                ...n,
+                label: shortLabel(n.id, n.group),
+                title: n.id,
+                shape: 'dot',
+                size: n.id === '{{ record_id }}' ? 16 : 11,
+                color: { background: groupColors[n.group].background, border: groupColors[n.group].border },
+                font: { color: '#e8e8f0', size: 10 },
+                shadow: { enabled: true, color: groupColors[n.group].background, size: 6 }
+            })));
+            const edges = new vis.DataSet(data.edges.map(e => ({
+                ...e,
+                color: { color: 'rgba(120,140,200,0.4)' },
+                width: 1.2,
+                smooth: { type: 'cubicBezier', roundness: 0.4 }
+            })));
+            new vis.Network(document.getElementById('miniGraph'), { nodes, edges }, {
+                layout: { hierarchical: { direction: 'LR', sortMethod: 'directed', levelSeparation: 90, nodeSpacing: 45 } },
+                physics: false,
+                interaction: { hover: true, tooltipDelay: 100, dragView: true, zoomView: false, dragNodes: false }
+            });
+        });
+</script>
+{% endblock %}
