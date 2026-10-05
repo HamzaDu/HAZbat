@@ -244,7 +244,7 @@ function rgba(hex, opacity) {
 
 // Escape a value for safe insertion into HTML.
 function esc(str) {
-    return String(str)
+    return String(str ?? '—')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -266,19 +266,25 @@ function toggleSection(name) {
         // An MLP has two parents (cathode and anode coating), so both branches
         // back to their materials are included.
         // Excludes dashed project-reference edges — only follows real traceability links.
+        const rev_adj = {};
+        edges.forEach(edge => {
+        if (!edge.dashes) {
+            if (!rev_adj[edge.to]) rev_adj[edge.to] = [];
+            rev_adj[edge.to].push(edge);
+            }
+        });
         const ancestors = new Set([targetId]);
         const queue = [targetId];
         while (queue.length) {
             const current = queue.shift();
-            edges
-                .filter(edge => edge.to === current && !edge.dashes)
-                .forEach(edge => {
-                    if (!ancestors.has(edge.from)) {
-                        ancestors.add(edge.from);
-                        queue.push(edge.from);
-                    }
-                });
-        }
+            (rev_adj[current] || []).forEach(edge => {
+                if (!visited.has(edge.from)) {
+                    visited.add(edge.from);
+                    queue.push(edge.from);
+                }
+            });
+        };
+    
         return ancestors;
     }
     function findDescendants(startId, edges) {
@@ -867,18 +873,14 @@ function resetFilters() {
                 currentSelectedPath = selectedPath;          // expose to onZoom
 
                 // Collect all edges within the selected subgraph
-            const pathEdgeIds = new Set();
-            for (let i = 0; i < path.length - 1; i++) {
-                const e = allEdges.find(e => e.from === path[i] && e.to === path[i + 1]);
-                if (e) pathEdgeIds.add(e.id);
-            }
-            allEdges
-                .filter(e => selectedPath.has(e.from) && selectedPath.has(e.to) && !e.dashes)
-                .forEach(e => pathEdgeIds.add(e.id));
+                const pathEdgeIds = allEdges
+                    .filter(e => selectedPath.has(e.from) && selectedPath.has(e.to) && !e.dashes)
+                    .map(e => e.id);
 
-            // Dim every node not in the set; highlight those that are — ONE redraw.
-            applyNodeStyles(selectedPath);
-            resetEdgeStyles();  // reset all edges to default color/width
+
+                // Dim every node not in the set; highlight those that are — ONE redraw.
+                applyNodeStyles(selectedPath);
+                resetEdgeStyles();  // reset all edges to default color/width
            
             // Pulsing animation along the path edges
                 let bright = false;
@@ -912,7 +914,7 @@ function resetFilters() {
 </script>
 
 
-// ─── Cycling Data Graph ─────────────────────────────────────────────────────
+<!-->─── Cycling Data Graph ───────────────────────────────────────────────────── -->
 <div style="margin-top: 40px;">
     <div class="result">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
