@@ -2126,3 +2126,79 @@ def record_graph(record_id: str):
     cur.close()
     conn.close()
     return JSONResponse({"nodes": nodes, "edges": edges})
+
+
+@app.get("/api/filters")
+def graph_filters():
+    """
+    Returns all available filter options for the traceability graph UI.
+    Each list contains the distinct values currently present in the database.
+    """
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # --- Projects ---
+    cur.execute("SELECT project_name FROM tbl_projects")
+    projects = [row[0] for row in cur.fetchall()]
+
+    # --- Material (electrode) fields ---
+    cur.execute("SELECT chemistry, supplier, location FROM tbl_materials")
+    mat_rows = cur.fetchall()
+    chemistries  = [row[0] for row in mat_rows]
+    suppliers    = [row[1] for row in mat_rows]
+    locations    = [row[2] for row in mat_rows]
+
+    # --- Coating fields ---
+    cur.execute("""SELECT
+        MIN(coat_weight_gsm) AS min_coat_weight_gsm,
+        MAX(coat_weight_gsm) AS max_coat_weight_gsm,
+        MIN(porosity) AS min_porosity,
+        MAX(porosity) AS max_porosity
+    FROM tbl_coating""")
+    coat_rows    = cur.fetchall()
+    gsm_min      = coat_rows[0]
+    gsm_max      = coat_rows[1]
+    porosity_min = coat_rows[2]
+    porosity_max = coat_rows[3]
+
+    # --- Cell fields ---
+    cur.execute("""
+    SELECT
+        electrolyte,
+        MIN(formation_capacity) AS min_capacity,
+        MAX(formation_capacity) AS max_capacity
+        MIN(np_ratio) AS min_np_ratio
+        MAX(np_ratio) AS max_np_ratio
+    FROM (
+        SELECT electrolyte, formation_capacity, np_ratio FROM tbl_slp
+        UNION ALL
+        SELECT electrolyte, formation_capacity FROM tbl_coincell
+        UNION ALL
+        SELECT electrolyte, formation_capacity FROM tbl_mlp
+    ) AS all_cells
+    WHERE electrolyte IS NOT NULL
+    GROUP BY electrolyte
+    ORDER BY electrolyte
+""")
+    cell_rows = cur.fetchall()
+    electrolytes = [row[0] for row in cell_rows]
+    capacity_min = min([row[1] for row in cell_rows])
+    capacity_max = max([row[2] for row in cell_rows])
+    np_ratio_min = min([row[3] for row in cell_rows])
+    np_ratio_max = min([row[4] for row in cell_rows])
+
+    return {
+        # Dropdown / checkbox options
+        "projects":     [r[0] for r in projects    if r[0]],
+        "chemistries":  [r[0] for r in chemistries if r[0]],
+        "suppliers":    [r[0] for r in suppliers   if r[0]],
+        "locations":    [r[0] for r in locations   if r[0]],
+        "electrolytes": [r[0] for r in electrolytes if r[0]],
+
+        # Slider ranges
+        "porosity": {"min": porosity_min, "max": porosity_max},
+        "weight":   {"min": gsm_min,   "max": gsm_max},
+        "capacity": {"min": capacity_min, "max": capacity_max},
+        "np_ratio": {"min": np_ratio_min, "max": np_ratio_max},
+    }
