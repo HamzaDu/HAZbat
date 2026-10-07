@@ -278,8 +278,8 @@ function toggleSection(name) {
         while (queue.length) {
             const current = queue.shift();
             (rev_adj[current] || []).forEach(edge => {
-                if (!visited.has(edge.from)) {
-                    visited.add(edge.from);
+                if (!ancestors.has(edge.from)) {
+                    ancestors.add(edge.from);
                     queue.push(edge.from);
                 }
             });
@@ -810,6 +810,11 @@ function resetFilters() {
         fetch('/api/graph').then(r => r.json()),
         fetch('/api/filters').then(r => r.json())
     ]).then(([graphData, filterData]) => {
+
+    // Build all filter panels
+        buildFilterUI(filterData);
+        buildProjectFilters(graphData.nodes.filter(n => n.group === 'project'));
+        buildNodeTypeFilter();
             
             nodesDS = new vis.DataSet(graphData.nodes.map(n => ({
                 ...n,
@@ -849,10 +854,7 @@ function resetFilters() {
             
             network.on('zoom', onZoom);
 
-            // Build all filter panels
-            buildFilterUI(filterData);
-            buildProjectFilters(graphData.nodes.filter(n => n.group === 'project'));
-            buildNodeTypeFilter();
+            
 
             // ---Click handler---
             network.on("click", async function(params) {
@@ -908,6 +910,11 @@ function resetFilters() {
                 // Tell the side panel which node was picked (static/js/node_panel.js)
                 document.dispatchEvent(new CustomEvent('hazbat:select', { detail: { id: nodeId } }));
             });
+            }).catch(err => {
+            console.error('Failed to load graph or filter data:', err);
+            // Optionally show a user-facing message:
+            document.getElementById('filter-panel').innerHTML =
+        '<p style="color:red;">Failed to load filters. Check the API.</p>';
         });
 
 
