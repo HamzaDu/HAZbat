@@ -2131,74 +2131,61 @@ def record_graph(record_id: str):
 @app.get("/api/filters")
 def graph_filters():
     """
-    Returns all available filter options for the traceability graph UI.
-    Each list contains the distinct values currently present in the database.
+    Filter options for the traceability graph. Shape matches buildFilterUI()
+    in templates/graph.html: {material:{...}, coating:{...}, cell:{...}}.
     """
-
     conn = get_connection()
     cur = conn.cursor()
 
-    # --- Projects ---
-    cur.execute("SELECT project_name FROM tbl_projects")
-    projects = [row[0] for row in cur.fetchall()]
+    def distinct(sql):
+        cur.execute(sql)
+        return [r[0] for r in cur.fetchall() if r[0] not in (None, "")]
 
-    # --- Material (electrode) fields ---
-    cur.execute("SELECT chemistry, supplier, location FROM tbl_materials")
-    mat_rows = cur.fetchall()
-    chemistries  = [row[0] for row in mat_rows]
-    suppliers    = [row[1] for row in mat_rows]
-    locations    = [row[2] for row in mat_rows]
+    def value_range(sql):
+        cur.execute(sql)
+        lo, hi = cur.fetchone()
+        if lo is None or hi is None:
+            return None
+        return {"min": float(lo), "max": float(hi)}
 
-    # --- Coating fields ---
-    cur.execute("""SELECT
-        MIN(coat_weight_gsm) AS min_coat_weight_gsm,
-        MAX(coat_weight_gsm) AS max_coat_weight_gsm,
-        MIN(porosity) AS min_porosity,
-        MAX(porosity) AS max_porosity
-    FROM tbl_coating""")
-    coat_rows    = cur.fetchall()
-    gsm_min      = coat_rows[0]
-    gsm_max      = coat_rows[1]
-    porosity_min = coat_rows[2]
-    porosity_max = coat_rows[3]
+    cells_made_by = distinct("""
+        SELECT made_by FROM (
+            SELECT made_by FROM tbl_slp
+            UNION SELECT made_by FROM tbl_coincell
+        ) t ORDER BY 1""")
+    cells_electrolyte = distinct("""
+        SELECT electrolyte FROM (
+            SELECT electrolyte FROM tbl_slp
+            UNION SELECT electrolyte FROM tbl_coincell
+            UNION SELECT electrolyte FROM tbl_mlp
+        ) t ORDER BY 1""")
+    cell_capacity = value_range("""
+        SELECT MIN(c), MAX(c) FROM (
+            SELECT formation_capacity AS c FROM tbl_slp
+            UNION ALL SELECT formation_capacity FROM tbl_coincell
+            UNION ALL SELECT cell_capacity FROM tbl_mlp
+        ) t""")
 
-    # --- Cell fields ---
-    cur.execute("""
-    SELECT
-        electrolyte,
-        MIN(formation_capacity) AS min_capacity,
-        MAX(formation_capacity) AS max_capacity
-        MIN(np_ratio) AS min_np_ratio
-        MAX(np_ratio) AS max_np_ratio
-    FROM (
-        SELECT electrolyte, formation_capacity, np_ratio FROM tbl_slp
-        UNION ALL
-        SELECT electrolyte, formation_capacity FROM tbl_coincell
-        UNION ALL
-        SELECT electrolyte, formation_capacity FROM tbl_mlp
-    ) AS all_cells
-    WHERE electrolyte IS NOT NULL
-    GROUP BY electrolyte
-    ORDER BY electrolyte
-""")
-    cell_rows = cur.fetchall()
-    electrolytes = [row[0] for row in cell_rows]
-    capacity_min = min([row[1] for row in cell_rows])
-    capacity_max = max([row[2] for row in cell_rows])
-    np_ratio_min = min([row[3] for row in cell_rows])
-    np_ratio_max = min([row[4] for row in cell_rows])
-
-    return {
-        # Dropdown / checkbox options
-        "projects":     [r[0] for r in projects    if r[0]],
-        "chemistries":  [r[0] for r in chemistries if r[0]],
-        "suppliers":    [r[0] for r in suppliers   if r[0]],
-        "locations":    [r[0] for r in locations   if r[0]],
-        "electrolytes": [r[0] for r in electrolytes if r[0]],
-
-        # Slider ranges
-        "porosity": {"min": porosity_min, "max": porosity_max},
-        "weight":   {"min": gsm_min,   "max": gsm_max},
-        "capacity": {"min": capacity_min, "max": capacity_max},
-        "np_ratio": {"min": np_ratio_min, "max": np_ratio_max},
+    result = {
+        "material": {
+            "chemistry":    distinct("SELECT DISTINCT chemistry FROM tbl_materials ORDER BY 1"),
+            "supplier":     distinct("SELECT DISTINCT supplier FROM tbl_materials ORDER BY 1"),
+            "location":     distinct("SELECT DISTINCT location FROM tbl_materials ORDER BY 1"),
+            "availability": distinct("SELECT DISTINCT availability FROM tbl_materials ORDER BY 1"),
+            "quantity_kg":  value_range("SELECT MIN(quantity_kg), MAX(quantity_kg) FROM tbl_materials"),
+        },
+        "coating": {
+            "made_by":         distinct("SELECT DISTINCT made_by FROM tbl_coating ORDER BY 1"),
+            "coat_weight_gsm": value_range("SELECT MIN(coat_weight_gsm), MAX(coat_weight_gsm) FROM tbl_coating"),
+            "porosity":        value_range("SELECT MIN(porosity), MAX(porosity) FROM tbl_coating"),
+        },
+        "cell": {
+            "made_by":            cells_made_by,
+            "electrolyte":        cells_electrolyte,
+            "formation_capacity": cell_capacity,
+            "np_ratio":           value_range("SELECT MIN(np_ratio), MAX(np_ratio) FROM tbl_slp"),
+        },
     }
+    cur.close()
+    conn.close()
+    return result
