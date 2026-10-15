@@ -1,0 +1,92 @@
+From 61622ac6ca1767bf813d324428ac045e74cdb1e5 Mon Sep 17 00:00:00 2001
+From: Andrew Lawson <andrewjllawson@gmail.com>
+Date: Thu, 15 Oct 2026 10:14:10 +0100
+Subject: [PATCH] Graph: bring back the quick-view panel and fix short labels
+
+- The graph page no longer loaded static/js/node_panel.js and still used
+  the old all-fields node card, so the quick-view panel never appeared.
+  Load the script, swap the card for the nodePanel container and close
+  it via 'hazbat:clear'.
+- shortLabel showed 'MLP-undefined' / 'CC-undefined' for IDs such as
+  MLP-0042 and ...-CC01; match both '-MLP-'/'MLP-' and '-CC-'/'-CC'.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Crj125Fro16MPuRzP8sX2x
+---
+ templates/graph.html | 32 ++++++--------------------------
+ 1 file changed, 6 insertions(+), 26 deletions(-)
+
+diff --git a/templates/graph.html b/templates/graph.html
+index 94229cc..b7d129b 100644
+--- a/templates/graph.html
++++ b/templates/graph.html
+@@ -72,15 +72,8 @@
+         <img class="graph-watermark" src="/static/img/wmg-white.png" alt="" aria-hidden="true">
+     </div>
+ 
+-    <!-- --- Node card --- -->
+-    <div id="nodeCard" style="display: none; width: 320px; flex-shrink: 0; position: sticky; top: 20px;" class="result">
+-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+-            <h3 id="nodeCardTitle" style="margin: 0;"></h3>
+-            <span onclick="clearSelection()" style="cursor: pointer; color: #999; font-size: 20px; line-height: 1;">&times;</span>
+-        </div>
+-        <div id="nodeCardFields" style="margin-top: 12px;"></div>
+-        <div id="nodeCardChain" style="margin-top: 16px;"></div>
+-    </div>
++    <!-- --- Quick-view panel for cells: filled in by static/js/node_panel.js --- -->
++    <aside id="nodePanel" class="result node-panel" hidden aria-live="polite"></aside>
+ </div>
+ 
+ <style>
+@@ -149,6 +142,7 @@
+ }
+ </style>
+ 
++<script src="/static/js/node_panel.js"></script>
+ <script>
+ 
+ // --- Label ---
+@@ -157,8 +151,8 @@ function shortLabel(id, group) {
+     if (group === 'material')   return id;
+     if (group === 'coating')    return id.split('-').slice(-1)[0].replace('C', 'Coat ');
+     if (group === 'slp')        return 'SLP-' + id.split('-SLP-')[1];
+-    if (group === 'coincell')   return 'CC-' + id.split('-CC-')[1];
+-    if (group === 'mlp')        return 'MLP-' + id.split('-MLP-')[1];
++    if (group === 'coincell')   { const m = id.match(/-CC-?(\w+)$/i); return m ? 'CC-' + m[1] : id; }
++    if (group === 'mlp')        { const m = id.match(/MLP-(\w+)$/i);  return m ? 'MLP-' + m[1] : id; }
+     return id;
+ }
+ 
+@@ -802,7 +796,7 @@ function resetFilters() {
+     //--- Selection handling ---
+     function clearSelection() {
+         currentSelectedPath = null;
+-        document.getElementById('nodeCard').style.display = 'none';
++        document.dispatchEvent(new CustomEvent('hazbat:clear'));   // closes the side panel
+         if (pulseInterval) clearInterval(pulseInterval);
+         resetEdgeStyles();
+         applyNodeStyles(null);
+@@ -896,20 +890,6 @@ function resetFilters() {
+                 edgesDS.update([...pathEdgeIds].map(id => ({ id, color: { color: colour }, width })));
+             }, 450);
+ 
+-            // Load and show the card
+-                const res = await fetch(`/api/card/${nodeId}`);
+-                if (!res.ok) return;
+-                const cardData = await res.json();
+-
+-                document.getElementById('nodeCardTitle').textContent = cardData.record_id;
+-                document.getElementById('nodeCardFields').innerHTML = Object.entries(cardData.record)
+-                    .map(([k, v]) => `<div class="row"><span class="label">${esc(k)}</span><span class="value">${esc(v)}</span></div>`)
+-                    .join('');
+-                document.getElementById('nodeCardChain').innerHTML = cardData.chain.length
+-                    ? `<div style="font-size:12px;font-weight:700;color:#1b3a6b;margin-bottom:6px;">TRACEABILITY CHAIN</div>` +
+-                      cardData.chain.map(c => `<div style="font-size:13px;padding:3px 0;">${esc(c)}</div>`).join('')
+-                    : '';
+-                document.getElementById('nodeCard').style.display = 'block';
+                 // Tell the side panel which node was picked (static/js/node_panel.js)
+                 document.dispatchEvent(new CustomEvent('hazbat:select', { detail: { id: nodeId } }));
+             });
+-- 
+2.43.0
+
