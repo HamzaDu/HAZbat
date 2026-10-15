@@ -105,6 +105,8 @@
 </head>
 <body>
     <nav>
+        <a href="https://warwick.ac.uk/fac/sci/wmg/" class="nav-logo" title="WMG, University of Warwick"><img src="/static/img/wmg-white-colour.png" alt="WMG, University of Warwick"></a>
+        <span class="nav-divider" aria-hidden="true"></span>
         <span class="brand">BMAC <span class="by">by HAZbat</span></span>
         <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Home</a>
         <a href="/directory" class="{{ 'active' if request.url.path == '/directory' else '' }}">Directory</a>
@@ -135,5 +137,10 @@
     <main>
         {% block content %}{% endblock %}
     </main>
+    <footer class="site-footer">
+        <img src="/static/img/wmg-colour.png" alt="WMG, University of Warwick">
+        <span class="site-footer-text">Developed by the <b>Battery Materials &amp; Cells Group</b>, WMG, University of Warwick<br>BMAC traceability database · by HAZbat</span>
+        <span class="site-footer-copy">© University of Warwick</span>
+    </footer>
 </body>
 </html>

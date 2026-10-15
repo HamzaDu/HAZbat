@@ -28,6 +28,11 @@
 {% endmacro %}
 
 <div class="lin-page">
+    <!-- Only shown on the printed / PDF copy -->
+    <div class="print-only print-head">
+        <span class="print-brand"><img src="/static/img/wmg-colour.png" alt="WMG, University of Warwick"><span><b>BMAC · Hazbat</b><br>Cell lineage &amp; passport card</span></span>
+        <span>{{ l.record_id }} · printed <span id="printDate"></span></span>
+    </div>
     <div class="lin-crumbs">
         <a href="/graph">← Back to graph</a> · <a href="/card/{{ l.record_id }}">Basic card</a>
     </div>
@@ -49,6 +54,7 @@
             <span class="usage-value">{{ l.usage.type | dash }}</span>
             <span style="margin-left: auto;"></span>
             <a class="btn-outline" href="{{ l.qr_url }}" download="{{ l.record_id }}-qr.png">Print label</a>
+            <button type="button" class="btn-outline" id="savePdfBtn" title="Opens the print dialog: choose “Save as PDF”">Save as PDF</button>
             <a class="btn-outline" href="/api/lineage/{{ l.record_id }}" download="{{ l.record_id }}-passport.json">Export JSON</a>
             {% if l.record_type == "slp" %}<a class="btn-solid" href="/slp/{{ l.record_id }}/edit">Edit</a>{% endif %}
         </div>
@@ -174,6 +180,25 @@
                         <div class="row"><span class="label">Avg. CE</span><span class="value" id="perfCe">—</span></div>
                     </div>
                 </div>
+                <div class="vc">
+                    <div class="vc-head">
+                        <span class="vc-title">Voltage vs areal capacity</span>
+                        <label>Cycles
+                            <select id="vcCycles">
+                                <option value="1,2">1 &amp; 2</option>
+                                <option value="1,last">First &amp; last</option>
+                                <option value="1,2,3,4,5">First 5</option>
+                                <option value="all">All (up to 20)</option>
+                            </select>
+                        </label>
+                        <label>Electrode area
+                            <input id="vcArea" type="number" min="0" step="0.001" placeholder="cm²" inputmode="decimal"> cm²
+                        </label>
+                    </div>
+                    <div class="print-only muted small" id="vcPrintInfo"></div>
+                    <canvas id="voltageChart" height="230"></canvas>
+                    <div class="muted small" id="vcNote">Loading voltage curves…</div>
+                </div>
                 {% else %}
                 <p class="muted">No cycling data for this cell yet. <a href="/cycling/upload">Upload a BioLogic .mpr file</a> to see capacity, coulombic efficiency and state of health here.</p>
                 {% endif %}
@@ -265,7 +290,33 @@
             </section>
         </div>
     </div>
+
+    <div class="print-only print-foot">
+        Source: {{ request.url }} · Values shown as “—” have not been recorded yet. Sample benchmarks: WEF (2019), EU Regulation 2023/1542.
+    </div>
 </div>
+
+<script>
+    // "Save as PDF": the browser's print dialog, laid out by the @media print rules in hazbat.css.
+    // The page title becomes the suggested PDF file name.
+    (function () {
+        const recordId = {{ l.record_id | tojson }};
+        const resizeCharts = () => {
+            if (window.Chart && Chart.instances) Object.values(Chart.instances).forEach(c => c.resize());
+        };
+        window.addEventListener('beforeprint', () => {
+            document.getElementById('printDate').textContent = new Date().toLocaleString('en-GB');
+            resizeCharts();
+        });
+        window.addEventListener('afterprint', resizeCharts);
+        document.getElementById('savePdfBtn').addEventListener('click', () => {
+            const oldTitle = document.title;
+            document.title = `${recordId}-lineage-passport`;
+            window.addEventListener('afterprint', () => { document.title = oldTitle; }, { once: true });
+            window.print();
+        });
+    })();
+</script>
 
 {% if l.usage.cycling %}
 <script>
@@ -295,6 +346,78 @@
             }
         })
         .catch(() => { document.getElementById('sohNote').textContent = 'cycling file could not be read'; });
+
+    // Voltage vs (areal) capacity, one colour per cycle: charge and discharge curves
+    (function () {
+        const recordId = {{ l.record_id | tojson }};
+        const COLOURS = ['#2e5fa3', '#e8730c', '#2e9e5b', '#8a5ad6', '#c62828', '#00838f', '#6d4c41', '#ad1457'];
+        const areaInput = document.getElementById('vcArea');
+        const cyclesSelect = document.getElementById('vcCycles');
+        const note = document.getElementById('vcNote');
+        const areaKey = 'hazbat-area-' + recordId;   // remember the area per cell in this browser
+        let chart = null, curves = null;
+
+        try { const saved = localStorage.getItem(areaKey); if (saved) areaInput.value = saved; } catch (e) {}
+
+        function draw() {
+            if (!curves || !window.Chart) return;
+            const area = parseFloat(areaInput.value);
+            const useArea = area > 0;
+            const datasets = [];
+            curves.cycles.forEach((c, i) => {
+                const colour = COLOURS[i % COLOURS.length];
+                ['charge', 'discharge'].forEach(part => {
+                    if (!c[part]) return;
+                    datasets.push({
+                        label: `Cycle ${c.cycle}`,
+                        legendKey: part === 'charge' || !c.charge,   // one legend entry per cycle
+                        data: c[part].capacity_mah.map((q, k) => ({ x: useArea ? q / area : q, y: c[part].voltage_v[k] })),
+                        borderColor: colour, backgroundColor: colour, borderWidth: 1.8,
+                        showLine: true, pointRadius: 0, tension: 0
+                    });
+                });
+            });
+            if (chart) chart.destroy();
+            chart = new Chart(document.getElementById('voltageChart'), {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    animation: false,
+                    plugins: { legend: { labels: { filter: (item, data) => data.datasets[item.datasetIndex].legendKey } } },
+                    scales: {
+                        x: { title: { display: true, text: useArea ? 'Areal capacity / mAh cm⁻²' : 'Capacity / mAh' } },
+                        y: { title: { display: true, text: 'Voltage / V' } }
+                    }
+                }
+            });
+            document.getElementById('vcPrintInfo').textContent =
+                `Cycles shown: ${curves.cycles.map(c => c.cycle).join(', ')} of ${curves.n_cycles}` +
+                (useArea ? ` · electrode area ${area} cm²` : ' · capacity in mAh (no electrode area entered)');
+            note.textContent = `${curves.cycles.length} of ${curves.n_cycles} cycles shown.` +
+                (useArea ? '' : ' Enter the electrode area to plot areal capacity (mAh/cm²).');
+        }
+
+        async function load() {
+            note.textContent = 'Loading voltage curves…';
+            try {
+                const res = await fetch(`/api/cycling/${encodeURIComponent(recordId)}/curves?cycles=${encodeURIComponent(cyclesSelect.value)}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Could not load voltage curves');
+                curves = data;
+                if (!curves.cycles.length) { note.textContent = 'No complete charge/discharge cycles found in the file.'; return; }
+                draw();
+            } catch (err) {
+                note.textContent = err.message;
+            }
+        }
+
+        areaInput.addEventListener('input', () => {
+            try { localStorage.setItem(areaKey, areaInput.value); } catch (e) {}
+            draw();
+        });
+        cyclesSelect.addEventListener('change', load);
+        load();
+    })();
 </script>
 {% endif %}
 {% endblock %}

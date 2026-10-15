@@ -200,3 +200,69 @@
 .mat-table > div { display: grid; grid-template-columns: 1.3fr 1fr 1fr 32px; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--hz-line); overflow-wrap: anywhere; }
 .mat-table > div > span:last-child { text-align: right; }
 .mat-head { font-size: 11.5px; font-weight: 700; color: var(--hz-muted); border-bottom: 1px solid var(--hz-border) !important; }
+
+/* Voltage vs areal capacity chart on the lineage page */
+.vc { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--hz-line); }
+.vc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.vc-title { font-size: 13px; font-weight: 700; color: var(--hz-navy); margin-right: auto; }
+.vc-head label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; font-weight: 600; color: #4a4f5c; }
+.vc-head select, .vc-head input { width: auto; margin: 0; padding: 6px 8px; font-size: 13px; }
+.vc-head input { width: 90px; }
+
+/* --- "Save as PDF" of the lineage page: print layout (A4 portrait) --- */
+.print-only { display: none; }
+button.btn-outline { margin: 0; font-family: inherit; cursor: pointer; }
+.btn-outline:hover { background: var(--hz-line); }
+
+@media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { background: #fff !important; }
+    nav, .lin-crumbs, .lin-actions a, .lin-actions button, .vc-head label, .link-strong, #vcNote { display: none !important; }
+    main { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+
+    /* Scale the 960px screen layout to the A4 width (≈718px inside the margins) */
+    .lin-page { zoom: 0.74; gap: 12px; }
+    .print-only { display: block; }
+    .print-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--hz-navy);
+                  padding-bottom: 6px; border-bottom: 2px solid var(--hz-navy); }
+    .print-foot { font-size: 11px; color: var(--hz-muted); padding-top: 8px; border-top: 1px solid var(--hz-border); }
+
+    .result, .kpi, .lin-header { box-shadow: none !important; border: 1px solid var(--hz-border); }
+    .lin-header, .kpi, .lin-box, .lin-node, .lin-proc, .perf, .vc, .row, .mat-table > div { break-inside: avoid; }
+    .lin-col { gap: 12px; }
+    a { color: inherit !important; text-decoration: none !important; }
+    canvas { max-width: 100% !important; }
+}
+
+/* --- WMG / University of Warwick branding --- */
+.nav-logo { display: inline-flex; align-items: center; }
+.nav-logo img { height: 34px; display: block; }
+.nav-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.35); margin-right: 6px; }
+.site-footer { margin-top: 48px; background: #fff; border-top: 1px solid var(--hz-border); padding: 18px 32px;
+               display: flex; align-items: center; gap: 18px; font-size: 13px; color: var(--hz-muted); }
+.site-footer img { height: 40px; }
+.site-footer-text { border-left: 1px solid var(--hz-border); padding-left: 18px; }
+.site-footer-text b { color: var(--hz-navy); }
+.site-footer-copy { margin-left: auto; }
+.login-card { max-width: 420px; margin: 0 auto; background: #fff; border-radius: 14px;
+              box-shadow: 0 4px 14px rgba(0,0,0,0.12); padding: 28px 24px 24px; }
+.login-logo { text-align: center; }
+.login-logo img { height: 64px; }
+.login-card h1 { margin: 12px 0 0; font-size: 22px; color: var(--hz-navy); text-align: center; }
+.login-sub { margin: 6px 0 0; text-align: center; color: var(--hz-muted); font-size: 13px; }
+.card-logo { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e3e6ee; }
+.card-logo img { height: 24px; opacity: 0.85; }
+.graph-watermark { position: absolute; right: 18px; bottom: 16px; height: 40px; opacity: 0.35; pointer-events: none; }
+.print-brand { display: inline-flex; align-items: center; gap: 14px; }
+.print-brand img { height: 44px; }
+.print-brand > span { padding-left: 14px; border-left: 1px solid var(--hz-border); }
+@media print {
+    .site-footer, .graph-watermark { display: none !important; }
+    .print-head { align-items: center; }
+}
+@media (max-width: 760px) {
+    .site-footer { flex-wrap: wrap; padding: 16px; }
+    .site-footer-copy { margin-left: 0; }
+    .nav-divider, .nav-logo { display: none; }
+}
