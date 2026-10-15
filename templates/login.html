@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Login — BMAC{% endblock %}
 {% block content %}
+<div class="login-card">
+<div class="login-logo"><img src="/static/img/wmg-colour.png" alt="WMG, University of Warwick"></div>
 <h1>Login</h1>
+<p class="login-sub">BMAC traceability database · Battery Materials &amp; Cells Group</p>
 <form method="post" action="/login">
     <label>Username</label>
     <input type="text" name="username" required>
@@ -13,4 +16,5 @@
 </form>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
+</div>
 {% endblock %}
