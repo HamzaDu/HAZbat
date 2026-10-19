@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+{% block title %}{{ l.record_id }} — Lineage & passport{% endblock %}
+{% block content %}
+{% set type_labels = {"slp": "SLP", "coincell": "Coin cell", "mlp": "MLP"} %}
+{% set r = l.record %}
+
+{# One process box between two stages of the lineage #}
+{% macro process_box(p, steps=None, extra=None, wide=False) %}
+<div class="lin-proc{% if wide %} wide{% endif %}">
+    <div class="lin-proc-head">
+        <span class="lin-proc-name">{{ p.name }}</span>
+        <span class="dq" title="Data quality: M measured, E estimated, S supplier-declared">{{ p.data_quality | dash }}</span>
+    </div>
+    {% if steps %}<div class="lin-proc-steps">{{ steps }}</div>{% endif %}
+    {% if extra %}<div class="lin-proc-extra">{{ extra }}</div>{% endif %}
+    <div class="chips">
+        <span class="chip energy">{{ p.energy_kwh | dash }} kWh</span>
+        <span class="chip where">{{ p.location | dash }} · {{ p.date | dash }}{% if p.operator %} · {{ p.operator }}{% endif %}</span>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro arrow(planned=False) %}
+<div class="lin-line{% if planned %} planned{% endif %}"></div>
+<svg class="lin-arrow" width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M0 0 L6 8 L12 0 Z" fill="{{ '#a8b0c4' if planned else '#1b3a6b' }}"></path></svg>
+{% endmacro %}
+
+<div class="lin-page">
+    <!-- Only shown on the printed / PDF copy -->
+    <div class="print-only print-head">
+        <span class="print-brand"><img src="/static/img/wmg-colour.png" alt="WMG, University of Warwick"><span><b>BMAC · Hazbat</b><br>Cell lineage &amp; passport card</span></span>
+        <span>{{ l.record_id }} · printed <span id="printDate"></span></span>
+    </div>
+    <div class="lin-crumbs">
+        <a href="/graph">← Back to graph</a> · <a href="/card/{{ l.record_id }}">Basic card</a>
+    </div>
+
+    <!-- Header -->
+    <div class="lin-header">
+        <div class="lin-header-top">
+            <div>
+                <div class="lin-title-row">
+                    <h1>{{ l.record_id }}</h1>
+                    <span class="status-chip">{{ "In test" if l.usage.type == "Testing" else "No test data yet" }}</span>
+                </div>
+                <div class="lin-subtitle">{{ type_labels[l.record_type] }} · {{ l.chemistry }}{% if r.get("Project") %} · Project: {{ r.get("Project") }}{% endif %}</div>
+            </div>
+            <div class="lin-passport-id" title="Proposed passport ID format">Passport ID <span>BMAC-DPP-{{ l.record_id }}</span></div>
+        </div>
+        <div class="lin-actions">
+            <span class="usage-label">USAGE</span>
+            <span class="usage-value">{{ l.usage.type | dash }}</span>
+            <span style="margin-left: auto;"></span>
+            <a class="btn-outline" href="{{ l.qr_url }}" download="{{ l.record_id }}-qr.png">Print label</a>
+            <button type="button" class="btn-outline" id="savePdfBtn" title="Opens the print dialog: choose “Save as PDF”">Save as PDF</button>
+            <a class="btn-outline" href="/api/lineage/{{ l.record_id }}" download="{{ l.record_id }}-passport.json">Export JSON</a>
+            {% if l.record_type == "slp" %}<a class="btn-solid" href="/slp/{{ l.record_id }}/edit">Edit</a>{% endif %}
+        </div>
+    </div>
+
+    <!-- Summary row -->
+    <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">PROCESS ENERGY</div><div class="kpi-value energy">{{ l.totals.energy_kwh | dash }}<small> kWh</small></div><div class="kpi-note">per cell</div></div>
+        <div class="kpi"><div class="kpi-label">STATE OF HEALTH</div><div class="kpi-value"><span id="sohValue">—</span><small> %</small></div><div class="kpi-note" id="sohNote">{{ "loading cycling data…" if l.usage.cycling else "no cycling data" }}</div></div>
+        <div class="kpi" title="Missing: {{ l.completeness.missing | join(', ') }}">
+            <div class="kpi-label">PASSPORT DATA</div>
+            <div class="kpi-value">{{ (100 * l.completeness.filled / l.completeness.total) | round | int }}<small> % complete</small></div>
+            <div class="meter"><div style="width: {{ 100 * l.completeness.filled / l.completeness.total }}%"></div></div>
+        </div>
+    </div>
+
+    <div class="lin-cols">
+        <!-- LEFT -->
+        <div class="lin-col">
+            <section class="result lin-box grow">
+                <div class="lin-box-head">
+                    <div>
+                        <h2>Lineage</h2>
+                        <div class="muted">This cell's segment of the traceability graph</div>
+                    </div>
+                    <a href="/graph" class="link-strong">Show in graph →</a>
+                </div>
+                <div class="lin-legend">
+                    <span><i class="dot material"></i>Material</span>
+                    <span><i class="dot coating"></i>Coating</span>
+                    <span><i class="dot {{ l.record_type }}"></i>{{ type_labels[l.record_type] }}</span>
+                    <span class="energy-text">kWh</span>
+                    <span><b>M</b> measured · <b>E</b> estimated · <b>S</b> supplier</span>
+                </div>
+
+                <div class="branch-grid {{ 'two' if l.branches | length > 1 else 'one' }}">
+                    {% for b in l.branches %}
+                    <div class="branch">
+                        <div class="lin-node material">
+                            <i class="dot material"></i>
+                            <div>
+                                <div class="node-kind">MATERIAL · {{ b.role | upper }}</div>
+                                <div class="node-id"><a href="/card/{{ b.material.id if b.material else '' }}">{{ b.material.id if b.material else "?" }}</a></div>
+                                <div class="node-info">{{ (b.material.chemistry if b.material else None) | dash }} · {{ (b.material.supplier if b.material else None) | dash }}</div>
+                            </div>
+                        </div>
+                        <div class="lin-line short"></div>
+                        {{ process_box(b.process, steps=b.process.steps) }}
+                        {{ arrow() }}
+                        <div class="lin-node coating">
+                            <i class="dot coating"></i>
+                            <div>
+                                <div class="node-kind">COATING · {{ b.role | upper }}</div>
+                                <div class="node-id"><a href="/card/{{ b.coating.id }}">{{ b.coating.id }}</a></div>
+                                <div class="node-info">{{ b.coating.coat_weight_gsm | dash }} g/m² · {{ b.coating.porosity | dash }} porosity</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="lin-trunk">
+                    {% if l.branches | length > 1 %}<div class="merge-bracket"></div>{% endif %}
+                    <div class="lin-line short"></div>
+                    {{ process_box(l.assembly, steps="Cut / stack → Tab weld → Electrolyte fill → Seal",
+                                   extra="Electrolyte: " ~ (l.assembly.inputs.electrolyte | dash), wide=True) }}
+                    {{ arrow() }}
+                    <div class="lin-node this-cell">
+                        <i class="dot {{ l.record_type }}"></i>
+                        <div>
+                            <div class="node-kind">THIS CELL · {{ type_labels[l.record_type] | upper }}</div>
+                            <div class="node-id">{{ l.record_id }}</div>
+                            <div class="node-info">
+                                {% if r.get("Cell Capacity") is not none %}Capacity {{ r["Cell Capacity"] }}{% elif r.get("Formation Capacity") is not none %}Formation capacity {{ r["Formation Capacity"] }}{% else %}Capacity —{% endif %}
+                                {% if r.get("N/P Ratio") is not none %} · N/P {{ r["N/P Ratio"] }}{% endif %}
+                                {% if r.get("A/C Area Ratio") is not none %} · A/C {{ r["A/C Area Ratio"] }}{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lin-line short"></div>
+                    {{ process_box(l.formation, extra="Formation capacity: " ~ (l.formation.formation_capacity | dash), wide=True) }}
+                    {{ arrow() }}
+                    <div class="lin-node usage">
+                        <div>
+                            <div class="node-kind">USAGE · {{ (l.usage.type or "not set") | upper }}</div>
+                            {% if l.usage.cycling %}
+                            <div class="node-info">{{ l.usage.cycling.half_cycles | dash }} half-cycles in {{ l.usage.cycling.filename }}</div>
+                            {% else %}
+                            <div class="node-info">No cycling data · <a href="/cycling/upload">Upload cycling data</a></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="lin-line short planned"></div>
+                    <div class="lin-proc wide planned">
+                        <div class="lin-proc-head"><span class="lin-proc-name">End-of-life route (planned)</span><span class="muted">not started</span></div>
+                        <div class="lin-proc-steps">Route: {{ l.end_of_life.route | dash }} · Recycler: {{ l.end_of_life.recycler | dash }}</div>
+                        <div class="lin-proc-extra">EU recovery targets from 2031: Li 80% · Co, Ni, Cu 95%</div>
+                    </div>
+                    {{ arrow(planned=True) }}
+                    <div class="lin-node planned"><div><div class="node-kind">END OF LIFE</div><div class="node-info">Recovered materials → new CAT-/AN- lots</div></div></div>
+                </div>
+
+                <div class="lin-totals">
+                    <div class="muted">Process energy along lineage</div>
+                    <div class="energy-text big">{{ l.totals.energy_kwh | dash }} kWh</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="lin-col">
+            <section class="result lin-box">
+                <div class="section-title">KEY PARAMETERS</div>
+                <div class="row"><span class="label">Chemistry</span><span class="value">{{ l.chemistry }}</span></div>
+                {% for label, value in r.items() %}
+                <div class="row"><span class="label">{{ label }}</span><span class="value">
+                    {% if label in ("Coating ID", "Cathode Coating", "Anode Coating") and value %}<a class="mono" href="/card/{{ value }}">{{ value }}</a>{% else %}{{ value | dash }}{% endif %}
+                </span></div>
+                {% endfor %}
+                <div class="panel-qr qr-row">
+                    <img src="{{ l.qr_url }}" alt="QR code for {{ l.record_id }}">
+                    <div>
+                        <div class="qr-title">Scan to open this card</div>
+                        <div class="muted mono small">/card/{{ l.record_id }}/lineage</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="result lin-box">
+                <div class="section-title">MATERIAL INPUTS</div>
+                <div class="mat-table">
+                    <div class="mat-head"><span>Material</span><span>Chemistry</span><span>Supplier</span><span>g</span></div>
+                    {% for b in l.branches if b.material %}
+                    <div><a class="mono" href="/card/{{ b.material.id }}">{{ b.material.id }}</a><span>{{ b.material.chemistry | dash }}</span><span>{{ b.material.supplier | dash }}</span><span>—</span></div>
+                    {% endfor %}
+                    <div><span>Electrolyte</span><span>{{ r.get("Electrolyte") | dash }}</span><span>—</span><span>—</span></div>
+                    <div><span>Foils, separator, casing</span><span>—</span><span>—</span><span>—</span></div>
+                </div>
+                <div class="muted small divider">Recycled content vs EU minimums · dark mark 2031, light mark 2036</div>
+                <div class="rc-row"><span>Cobalt</span><div class="bar"><i class="m31" style="left: 53%"></i><i class="m36" style="left: 87%"></i></div><b>— / 16 / 26%</b></div>
+                <div class="rc-row"><span>Lithium</span><div class="bar"><i class="m31" style="left: 20%"></i><i class="m36" style="left: 40%"></i></div><b>— / 6 / 12%</b></div>
+                <div class="rc-row"><span>Nickel</span><div class="bar"><i class="m31" style="left: 20%"></i><i class="m36" style="left: 50%"></i></div><b>— / 6 / 15%</b></div>
+            </section>
+
+            <section class="result lin-box grow">
+                <div class="section-title">ENERGY &amp; UTILITIES</div>
+                <div class="row"><span class="label">Electricity, all processes</span><span class="value">{{ l.totals.energy_kwh | dash }}</span></div>
+                <div class="row"><span class="label">Dry room · drying</span><span class="value">—</span></div>
+                <div class="row"><span class="label">Solvent used · recovered</span><span class="value">—</span></div>
+                <div class="row"><span class="label">Process water</span><span class="value">—</span></div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Circularity and supply chain, side by side -->
+    <div class="lin-row2">
+        <section class="result lin-box">
+            <div class="section-title">CIRCULARITY &amp; END OF LIFE</div>
+            <div class="row"><span class="label">Planned route</span><span class="value">{{ l.end_of_life.route | dash }}</span></div>
+            <div class="row"><span class="label">Second-life eligible</span><span class="value">{{ l.end_of_life.second_life_eligible | dash }}</span></div>
+            <div class="row"><span class="label">Hazardous substances</span><span class="value">—</span></div>
+            <div class="row"><span class="label">Recycler</span><span class="value">{{ l.end_of_life.recycler | dash }}</span></div>
+        </section>
+
+        <section class="result lin-box">
+            <div class="section-title">SUPPLY CHAIN DUE DILIGENCE</div>
+            {% for b in l.branches if b.material %}
+            <div class="row"><span class="label">{{ b.role }} supplier</span><span class="value">{{ b.material.supplier | dash }}</span></div>
+            {% endfor %}
+            <div class="row"><span class="label">Due-diligence status (OECD)</span><span class="value">—</span></div>
+            <div class="row"><span class="label">Mine origin (Co / Ni / Li)</span><span class="value">—</span></div>
+            <div class="row"><span class="label">Certificates / CoA</span><span class="value">—</span></div>
+        </section>
+    </div>
+
+    <!-- Performance & durability: summary strip and a 2 x 2 grid of graphs -->
+    <div class="lin-section-head">
+        <h2>Performance &amp; durability</h2>
+        <span class="muted">{% if l.usage.cycling %}from {{ l.usage.cycling.filename }}{% else %}no cycling data yet{% endif %}</span>
+    </div>
+    <section class="result perf-stats">
+        <div class="perf-stat"><span>Rated capacity</span><b>{{ r.get("Cell Capacity") | dash }}</b></div>
+        <div class="perf-stat"><span>Formation cap.</span><b>{{ r.get("Formation Capacity") | dash }}</b></div>
+        <div class="perf-stat"><span>First discharge</span><b id="perfFirst">—</b></div>
+        <div class="perf-stat"><span>Latest discharge</span><b id="perfLatest">—</b></div>
+        <div class="perf-stat"><span>Avg. CE</span><b id="perfCe">—</b></div>
+    </section>
+
+    <div class="lin-graphs">
+        <section class="result lin-box graph-card">
+            <div class="graph-head"><span class="section-title">1 · DISCHARGE CAPACITY vs CYCLE</span></div>
+            {% if l.usage.cycling %}
+            <canvas id="capacityChart" height="230"></canvas>
+            {% else %}
+            <p class="muted graph-empty">No cycling data for this cell yet. <a href="/cycling/upload">Upload a BioLogic .mpr file</a> to see capacity, coulombic efficiency and state of health here.</p>
+            {% endif %}
+        </section>
+
+        <section class="result lin-box graph-card">
+            <div class="graph-head vc-head">
+                <span class="section-title">2 · VOLTAGE vs AREAL CAPACITY</span>
+                {% if l.usage.cycling %}
+                <label>Cycles
+                    <select id="vcCycles">
+                        <option value="1,2">1 &amp; 2</option>
+                        <option value="1,last">First &amp; last</option>
+                        <option value="1,2,3,4,5">First 5</option>
+                        <option value="all">All (up to 20)</option>
+                    </select>
+                </label>
+                <label>Area
+                    <input id="vcArea" type="number" min="0" step="0.001" placeholder="cm²" inputmode="decimal"> cm²
+                </label>
+                {% endif %}
+            </div>
+            {% if l.usage.cycling %}
+            <div class="print-only muted small" id="vcPrintInfo"></div>
+            <canvas id="voltageChart" height="230"></canvas>
+            <div class="muted small" id="vcNote">Loading voltage curves…</div>
+            {% else %}
+            <p class="muted graph-empty">Voltage curves appear here once a cycling file is uploaded.</p>
+            {% endif %}
+        </section>
+
+        <!-- Placeholder graphs: keep the 2 x 2 grid until we decide what goes here -->
+        <section class="result lin-box graph-card placeholder">
+            <div class="graph-head"><span class="section-title">3 · COULOMBIC EFFICIENCY vs CYCLE</span><span class="ph-pill">PLACEHOLDER</span></div>
+            <svg class="ph-axes" viewBox="0 0 440 230" aria-hidden="true">
+                <g class="ph-grid"><line x1="46" x2="425" y1="22" y2="22"/><line x1="46" x2="425" y1="62" y2="62"/><line x1="46" x2="425" y1="102" y2="102"/><line x1="46" x2="425" y1="142" y2="142"/><line x1="46" x2="425" y1="182" y2="182"/></g>
+                <path class="ph-axis" d="M46 12 V198 H425"/>
+                <path class="ph-curve" d="M50 175 C 70 60, 90 45, 140 40 S 300 30, 420 28"/>
+                <g class="ph-label"><text x="40" y="25" text-anchor="end">100</text><text x="40" y="105" text-anchor="end">95</text><text x="40" y="185" text-anchor="end">90</text>
+                <text x="46" y="212" text-anchor="middle">0</text><text x="235" y="212" text-anchor="middle">50</text><text x="425" y="212" text-anchor="middle">100</text>
+                <text x="235" y="227" text-anchor="middle">Cycle #</text><text x="12" y="105" text-anchor="middle" transform="rotate(-90 12 105)">CE / %</text></g>
+                <text class="ph-msg" x="235" y="115" text-anchor="middle">Uses existing cycling data — needs more cycles</text>
+            </svg>
+        </section>
+
+        <section class="result lin-box graph-card placeholder">
+            <div class="graph-head"><span class="section-title">4 · KEY GRAPH TBC</span><span class="ph-pill">PLACEHOLDER</span></div>
+            <svg class="ph-axes" viewBox="0 0 440 230" aria-hidden="true">
+                <path class="ph-axis" d="M46 12 V198 H425"/>
+                <g class="ph-label"><text x="235" y="227" text-anchor="middle">x-axis TBC</text><text x="12" y="105" text-anchor="middle" transform="rotate(-90 12 105)">y-axis TBC</text></g>
+                <text class="ph-msg" x="235" y="100" text-anchor="middle">Reserved for a future key graph</text>
+                <text class="ph-sub" x="235" y="120" text-anchor="middle">e.g. dQ/dV · rate capability · impedance</text>
+            </svg>
+        </section>
+    </div>
+
+    <div class="print-only print-foot">
+        Source: {{ request.url }} · Values shown as “—” have not been recorded yet. EU Regulation 2023/1542.
+    </div>
+</div>
+
+<script>
+    // "Save as PDF": the browser's print dialog, laid out by the @media print rules in hazbat.css.
+    // The page title becomes the suggested PDF file name.
+    (function () {
+        const recordId = {{ l.record_id | tojson }};
+        const resizeCharts = () => {
+            if (window.Chart && Chart.instances) Object.values(Chart.instances).forEach(c => c.resize());
+        };
+        window.addEventListener('beforeprint', () => {
+            document.getElementById('printDate').textContent = new Date().toLocaleString('en-GB');
+            resizeCharts();
+        });
+        window.addEventListener('afterprint', resizeCharts);
+        document.getElementById('savePdfBtn').addEventListener('click', () => {
+            const oldTitle = document.title;
+            document.title = `${recordId}-lineage-passport`;
+            window.addEventListener('afterprint', () => { document.title = oldTitle; }, { once: true });
+            window.print();
+        });
+    })();
+</script>
+
+{% if l.usage.cycling %}
+<script>
+    // State of health and capacity chart from the latest uploaded cycling file
+    fetch(`/api/cycling/${encodeURIComponent({{ l.record_id | tojson }})}/summary`)
+        .then(res => { if (!res.ok) throw new Error('no data'); return res.json(); })
+        .then(s => {
+            const d = s.discharge_capacity_mah || [];
+            document.getElementById('sohValue').textContent = s.soh_pct != null ? s.soh_pct : '—';
+            document.getElementById('sohNote').textContent = d.length ? `after ${d.length} discharges` : 'no discharge data';
+            if (d.length) {
+                document.getElementById('perfFirst').textContent = d[0].toFixed(2) + ' mAh';
+                document.getElementById('perfLatest').textContent = d[d.length - 1].toFixed(2) + ' mAh';
+            }
+            const ce = s.efficiency || [];
+            if (ce.length) document.getElementById('perfCe').textContent = (ce.reduce((a, b) => a + b, 0) / ce.length).toFixed(2) + '%';
+            if (window.Chart && d.length) {
+                new Chart(document.getElementById('capacityChart'), {
+                    type: 'line',
+                    data: { labels: d.map((_, i) => i + 1),
+                            datasets: [{ label: 'Discharge capacity (mAh)', data: d, borderColor: '#2e5fa3',
+                                         backgroundColor: 'rgba(46,95,163,0.08)', fill: true, tension: 0.1, pointRadius: 2 }] },
+                    options: { plugins: { legend: { display: false } },
+                               scales: { x: { title: { display: true, text: 'Discharge #' } },
+                                         y: { title: { display: true, text: 'mAh' } } } }
+                });
+            }
+        })
+        .catch(() => { document.getElementById('sohNote').textContent = 'cycling file could not be read'; });
+
+    // Voltage vs (areal) capacity, one colour per cycle: charge and discharge curves
+    (function () {
+        const recordId = {{ l.record_id | tojson }};
+        const COLOURS = ['#2e5fa3', '#e8730c', '#2e9e5b', '#8a5ad6', '#c62828', '#00838f', '#6d4c41', '#ad1457'];
+        const areaInput = document.getElementById('vcArea');
+        const cyclesSelect = document.getElementById('vcCycles');
+        const note = document.getElementById('vcNote');
+        const areaKey = 'hazbat-area-' + recordId;   // remember the area per cell in this browser
+        let chart = null, curves = null;
+
+        try { const saved = localStorage.getItem(areaKey); if (saved) areaInput.value = saved; } catch (e) {}
+
+        function draw() {
+            if (!curves || !window.Chart) return;
+            const area = parseFloat(areaInput.value);
+            const useArea = area > 0;
+            const datasets = [];
+            curves.cycles.forEach((c, i) => {
+                const colour = COLOURS[i % COLOURS.length];
+                ['charge', 'discharge'].forEach(part => {
+                    if (!c[part]) return;
+                    datasets.push({
+                        label: `Cycle ${c.cycle}`,
+                        legendKey: part === 'charge' || !c.charge,   // one legend entry per cycle
+                        data: c[part].capacity_mah.map((q, k) => ({ x: useArea ? q / area : q, y: c[part].voltage_v[k] })),
+                        borderColor: colour, backgroundColor: colour, borderWidth: 1.8,
+                        showLine: true, pointRadius: 0, tension: 0
+                    });
+                });
+            });
+            if (chart) chart.destroy();
+            chart = new Chart(document.getElementById('voltageChart'), {
+                type: 'scatter',
+                data: { datasets },
+                options: {
+                    animation: false,
+                    plugins: { legend: { labels: { filter: (item, data) => data.datasets[item.datasetIndex].legendKey } } },
+                    scales: {
+                        x: { title: { display: true, text: useArea ? 'Areal capacity / mAh cm⁻²' : 'Capacity / mAh' } },
+                        y: { title: { display: true, text: 'Voltage / V' } }
+                    }
+                }
+            });
+            document.getElementById('vcPrintInfo').textContent =
+                `Cycles shown: ${curves.cycles.map(c => c.cycle).join(', ')} of ${curves.n_cycles}` +
+                (useArea ? ` · electrode area ${area} cm²` : ' · capacity in mAh (no electrode area entered)');
+            note.textContent = `${curves.cycles.length} of ${curves.n_cycles} cycles shown.` +
+                (useArea ? '' : ' Enter the electrode area to plot areal capacity (mAh/cm²).');
+        }
+
+        async function load() {
+            note.textContent = 'Loading voltage curves…';
+            try {
+                const res = await fetch(`/api/cycling/${encodeURIComponent(recordId)}/curves?cycles=${encodeURIComponent(cyclesSelect.value)}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Could not load voltage curves');
+                curves = data;
+                if (!curves.cycles.length) { note.textContent = 'No complete charge/discharge cycles found in the file.'; return; }
+                draw();
+            } catch (err) {
+                note.textContent = err.message;
+            }
+        }
+
+        areaInput.addEventListener('input', () => {
+            try { localStorage.setItem(areaKey, areaInput.value); } catch (e) {}
+            draw();
+        });
+        cyclesSelect.addEventListener('change', load);
+        load();
+    })();
+</script>
+{% endif %}
+{% endblock %}

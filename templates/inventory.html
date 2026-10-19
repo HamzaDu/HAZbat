@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Inventory{% endblock %}
+{% block content %}
+<h1>{{ title }} Inventory</h1>
+<p>
+    <a href="{{ new_url }}">+ New</a> &nbsp;|&nbsp;
+    <a href="{{ bulk_url }}">Bulk Upload</a> &nbsp;|&nbsp;
+    <a href="{{ request.url.path }}/export?format=xlsx">Export to Excel</a> &nbsp;|&nbsp;
+    <a href="{{ request.url.path }}/export?format=csv">Export to CSV</a>
+</p>
+<table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+        <tr style="background: #f5f8fc; text-align: left;">
+            {% for col in columns %}
+            <th style="padding: 8px; border-bottom: 2px solid #ccc;">{{ col }}</th>
+            {% endfor %}
+            {% if edit_url_base %}
+            <th style="padding: 8px; border-bottom: 2px solid #ccc;">Actions</th>
+            {% endif %}
+        </tr>
+    </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+            {% for value in row %}
+            {% if loop.first %}
+            <td style="padding: 8px; border-bottom: 1px solid #eee;"><a href="/card/{{ value }}">{{ value }}</a></td>
+            {% else %}
+            <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ value if value is not none else "—" }}</td>
+            {% endif %}
+            {% endfor %}
+            {% if edit_url_base %}
+            <td style="padding: 8px; border-bottom: 1px solid #eee;"><a href="{{ edit_url_base }}/{{ row[0] }}/edit">Edit</a></td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% if not rows %}
+<p>No records yet.</p>
+{% endif %}
+{% endblock %}
