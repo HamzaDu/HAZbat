@@ -1,9 +1,9 @@
 # BMAC By HazBAT — Battery Materials & Cells Traceability
 
 
-<picture align="center">
-  <img src="static/img/wmg-colour.png" alt="WMG Logo" width="200">
-</picture>
+<p align="center">
+  <img src="static/img/wmg-colour.png" alt="WMG Logo" width="300">
+</p>
 
 **Live demo:** https://hazbat-production.up.railway.app
 
