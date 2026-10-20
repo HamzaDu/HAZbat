@@ -1,3 +1,10 @@
+"""Login, logout and adding users (admin only).
+
+Logging in stores user_id, full_name, is_admin and the user's projects in the
+session cookie; core/auth.py reads them back.
+Tables: tbl_users, tbl_user_projects, tbl_projects.
+"""
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 import bcrypt
@@ -9,13 +16,17 @@ from core.templates import templates
 router = APIRouter()
 
 
+# --- Login / logout ----------------------------------------------------------
+
 @router.get("/login", response_class=HTMLResponse)
 def login_form(request: Request):
+    """Show the login page."""
     return templates.TemplateResponse("login.html", {"request": request})
- 
- 
+
+
 @router.post("/login", response_class=HTMLResponse)
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+    """Check username and password, then store the user and their projects in the session."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT user_id, password_hash, full_name, is_admin FROM tbl_users WHERE username = %s", (username,))
@@ -37,16 +48,20 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     request.session["projects"] = user_projects
 
     return RedirectResponse(url="/", status_code=303)
- 
- 
+
+
 @router.get("/logout")
 def logout(request: Request):
+    """Clear the session and go back to the home page."""
     request.session.clear()
     return RedirectResponse(url="/", status_code=303)
 
 
+# --- Session check -----------------------------------------------------------
+
 @router.get("/debug/session")
 def debug_session(request: Request):
+    """Show what is stored in the current session (for checking logins and project access)."""
     return {
         "user_id": request.session.get("user_id"),
         "full_name": request.session.get("full_name"),
@@ -55,8 +70,11 @@ def debug_session(request: Request):
     }
 
 
+# --- Users (admin only) ------------------------------------------------------
+
 @router.get("/admin/users/new", response_class=HTMLResponse)
 def new_user_form(request: Request):
+    """Form for adding a user (admins only)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -77,6 +95,7 @@ def new_user_form(request: Request):
 def submit_new_user(request: Request, username: str = Form(...), password: str = Form(...),
                      full_name: str = Form(...), is_admin: str = Form(None),
                      projects: list = Form(default=[])):
+    """Create a user and give them access to the chosen projects (admins only)."""
     redirect = require_login(request)
     if redirect:
         return redirect

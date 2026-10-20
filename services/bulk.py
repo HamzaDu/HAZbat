@@ -1,3 +1,10 @@
+"""Bulk upload of CSV / Excel files (routers/bulk_upload.py).
+
+Each row is checked, then inserted with insert_record(). Rows that fail are
+reported with their spreadsheet row number instead of stopping the upload.
+BULK_SPECS lists the required and optional columns for each table.
+"""
+
 import io
 import re
 from datetime import datetime
@@ -7,7 +14,6 @@ import pandas as pd
 from services.forms import clean_optional_fields, coating_electrode, insert_record, record_exists
 
 
-# --- Bulk upload helpers -----------------------------------------------------
 # Cells that mean "no data". Stored as NULL in the database and shown as "—" on every page.
 BLANK_MARKERS = {"", "nan", "nat", "none", "null", "n/a", "na", "-", "—", "–"}
 DATE_FORMATS = ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d.%m.%Y")
@@ -126,21 +132,25 @@ def process_bulk_upload(rows, table: str, check=None):
 
 
 def check_material_row(v):
+    """Bulk upload check: material IDs must start with CAT- or AN-."""
     if not (v["material_id"].startswith("CAT-") or v["material_id"].startswith("AN-")):
         return f"'{v['material_id']}' must start with CAT- or AN-."
 
 
 def check_coating_row(v):
+    """Bulk upload check: the coating's material must exist."""
     if not record_exists("tbl_materials", "material_id", v["material_id"]):
         return f"Material {v['material_id']} doesn't exist."
 
 
 def check_cell_row(v):
+    """Bulk upload check: the cell's coating must exist."""
     if not record_exists("tbl_coating", "coating_id", v["coating_id"]):
         return f"Coating {v['coating_id']} doesn't exist."
 
 
 def check_mlp_row(v):
+    """Bulk upload check: an MLP needs an existing cathode and an existing anode coating."""
     if coating_electrode(v["cat_coating_id"]) != "cathode":
         return f"{v['cat_coating_id']} isn't an existing cathode (CAT-) coating."
     if coating_electrode(v["an_coating_id"]) != "anode":

@@ -1,3 +1,9 @@
+"""HAZbot: ask a question in plain English and get a SQL query and its results.
+
+HAZbot.py sends the question to the AI model; only SELECT queries are run.
+Template: HAZbot.html.
+"""
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -11,6 +17,7 @@ router = APIRouter()
 
 @router.get("/HAZbot", response_class=HTMLResponse)
 def HAZbot_page(request: Request):
+    """HAZbot page."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -19,6 +26,7 @@ def HAZbot_page(request: Request):
 
 @router.post("/api/HAZbot/ask")
 def HAZbot_ask(request: Request, question: str = Form(...)):
+    """Turn a question into SQL with the AI model, run it if it is a SELECT, and return the results."""
     raw = ask_ai_for_sql(question)
 
     if raw.startswith("ERROR"):

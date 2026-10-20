@@ -1,3 +1,5 @@
+"""Charts page and the small JSON endpoints that feed it (templates/chart.html)."""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -10,24 +12,27 @@ router = APIRouter()
 
 @router.get("/api/chart/formation-capacity")
 def chart_formation_capacity():
+    """Formation capacity of each SLP cell (bar chart data)."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT slp_id, formation_capacity FROM tbl_slp WHERE formation_capacity IS NOT NULL ORDER BY slp_id")
     rows = cur.fetchall()
     cur.close()
     conn.close()
- 
+
     labels = [r[0] for r in rows]
     values = [float(r[1]) for r in rows]
     return JSONResponse({"labels": labels, "values": values})
- 
+
 @router.get("/chart", response_class=HTMLResponse)
 def chart_page(request: Request):
+    """Charts page."""
     return templates.TemplateResponse("chart.html", {"request": request})
 
 
 @router.get("/api/chart/my-projects")
 def chart_my_projects(request: Request):
+    """Number of coatings and cells in each project the user can see."""
     allowed = get_allowed_projects(request)
     conn = get_connection()
     cur = conn.cursor()
@@ -62,6 +67,7 @@ def chart_my_projects(request: Request):
 
 @router.get("/api/chart/gsm-by-coating")
 def chart_gsm():
+    """Coat weight (g/m²) of each coating."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT coating_id, coat_weight_gsm FROM tbl_coating WHERE coat_weight_gsm IS NOT NULL ORDER BY coating_id")
@@ -73,6 +79,7 @@ def chart_gsm():
 
 @router.get("/api/chart/records-per-table")
 def chart_records_per_table():
+    """How many records each table holds."""
     conn = get_connection()
     cur = conn.cursor()
     counts = {}
@@ -87,6 +94,7 @@ def chart_records_per_table():
 
 @router.get("/api/chart/coatings-over-time")
 def chart_coatings_over_time():
+    """Number of coatings made on each date."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""

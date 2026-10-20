@@ -1,3 +1,10 @@
+"""Settings read from environment variables (or a .env file in the repo folder).
+
+BASE_URL        address the QR codes point to, e.g. http://hazbat.wmg.local:8000
+SESSION_SECRET  key used to sign the login cookie
+DATABASE_URL    read in core/db.py
+"""
+
 import os
 
 from dotenv import load_dotenv

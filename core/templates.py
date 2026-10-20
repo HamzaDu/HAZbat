@@ -1,3 +1,8 @@
+"""Jinja2 template setup shared by every page (HTML files are in templates/).
+
+Adds the `dash` filter: {{ value | dash }} shows "—" for a blank value.
+"""
+
 import jinja2
 from fastapi.templating import Jinja2Templates
 

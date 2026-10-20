@@ -1,3 +1,10 @@
+"""Record cards and QR codes.
+
+/card/{id}      basic card page (card.html)
+/api/card/{id}  same data as JSON, plus the quick-view panel fields for cells
+/qr/{id}.png    QR code that opens the card (the lineage page for cells)
+"""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 import base64
@@ -22,6 +29,7 @@ def qr_code(record_id: str):
 
 @router.get("/card/{record_id}", response_class=HTMLResponse)
 def view_card(request: Request, record_id: str):
+    """Basic card page for any record, with its QR code and linked records."""
     record_type = detect_record_type(record_id)
     if not record_type:
         return HTMLResponse("Unrecognised ID format.", status_code=404)
@@ -47,6 +55,7 @@ def view_card(request: Request, record_id: str):
 
 @router.get("/api/card/{record_id}")
 def card_data(record_id: str):
+    """Card data as JSON; for cells it also includes the graph panel fields and links."""
     record_type = detect_record_type(record_id)
     if not record_type:
         return JSONResponse({"error": "Unrecognised ID format"}, status_code=404)

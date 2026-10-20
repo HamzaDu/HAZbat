@@ -1,3 +1,8 @@
+"""Cycling data: .mpr upload, capacity / efficiency / state-of-health summary, voltage curves.
+
+File reading lives in services/cycling.py. Template: cycling_upload.html.
+"""
+
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from pathlib import Path
@@ -10,8 +15,11 @@ from services.cycling import group_full_cycles, latest_cycling_file, read_half_c
 router = APIRouter()
 
 
+# --- Upload ------------------------------------------------------------------
+
 @router.get("/cycling/upload", response_class=HTMLResponse)
 def cycling_upload_form(request: Request):
+    """Form for uploading a BioLogic .mpr file for a record."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -20,6 +28,7 @@ def cycling_upload_form(request: Request):
 
 @router.post("/cycling/upload", response_class=HTMLResponse)
 async def cycling_upload_submit(request: Request, record_id: str = Form(...), file: UploadFile = File(...)):
+    """Save the uploaded .mpr file, read its size and cycle count, and log it in tbl_cycling_data."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -65,8 +74,11 @@ async def cycling_upload_submit(request: Request, record_id: str = Form(...), fi
     return templates.TemplateResponse("cycling_upload.html", {"request": request, "error": error, "success": success})
 
 
+# --- Summary and voltage curves ----------------------------------------------
+
 @router.get("/api/cycling/{record_id}/summary")
 def cycling_summary(record_id: str):
+    """Capacity per half-cycle, coulombic efficiency and state of health from the latest file."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(

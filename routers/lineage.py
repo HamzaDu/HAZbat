@@ -1,3 +1,8 @@
+"""Lineage & passport page for cells, and its JSON export.
+
+The data is built in services/lineage.py. Template: lineage.html.
+"""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -11,6 +16,7 @@ router = APIRouter()
 
 @router.get("/card/{record_id}/lineage", response_class=HTMLResponse)
 def lineage_page(request: Request, record_id: str):
+    """Lineage & passport page for a cell (other records are sent to their basic card)."""
     record_type = detect_record_type(record_id)
     if not record_type:
         return HTMLResponse("Unrecognised ID format.", status_code=404)

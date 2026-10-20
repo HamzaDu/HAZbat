@@ -1,7 +1,12 @@
+"""Helpers for the "New record" forms (routers/records.py) and bulk upload.
+
+Cleans optional form values, inserts rows and fills the dropdown lists.
+Tables: tbl_materials, tbl_coating, tbl_projects (read), any table (insert_record).
+"""
+
 from core.db import get_connection
 
 
-# --- Shared helpers for the "New record" forms ------------------------------
 FIELD_LABELS = {
     "quantity_kg": "Quantity (kg)", "coat_weight_gsm": "Coat weight (g/m²)", "porosity": "Porosity",
     "formation_capacity": "Formation capacity", "np_ratio": "N/P ratio",

@@ -1,7 +1,13 @@
+"""Lineage & passport page data (routers/lineage.py, templates/lineage.html).
+
+build_lineage() collects one cell's materials, coatings, process steps,
+usage (cycling data) and end-of-life details, plus a passport completeness score.
+Values not recorded yet stay None and show as "—".
+"""
+
 from services.cards import fetch_card_record
 
 
-# --- Lineage & passport page ------------------------------------------------
 # Process energy is not recorded yet, so it stays None (shown as "—") until
 # process-step data is added to the database. Cost and carbon are deliberately
 # not part of the passport: they need a proper study, not a rough estimate.
@@ -22,6 +28,7 @@ def to_jsonable(value):
 
 
 def electrode_role(material_id: str) -> str:
+    """'Cathode' / 'Anode' from a CAT- / AN- material ID ('Electrode' if neither)."""
     rid = (material_id or "").upper()
     if rid.startswith("CAT"):
         return "Cathode"

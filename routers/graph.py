@@ -1,3 +1,10 @@
+"""Traceability graph (templates/graph.html, drawn with vis-network).
+
+/api/graph       every record as nodes and links
+/api/graph/{id}  one record and its direct neighbours
+/api/filters     values for the filter sidebar
+"""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -8,8 +15,11 @@ from services.records import detect_record_type
 router = APIRouter()
 
 
+# --- Whole graph -------------------------------------------------------------
+
 @router.get("/api/graph")
 def traceability_graph():
+    """Every record as graph nodes, linked material -> coating -> cell, plus dashed links to projects."""
     conn = get_connection()
     cur = conn.cursor()
 
@@ -18,6 +28,7 @@ def traceability_graph():
     seen_projects = set()
 
     def add_project_node(project_name):
+        """Add a project node the first time that project is seen."""
         if project_name and project_name not in seen_projects:
             nodes.append({"id": f"PROJECT-{project_name}", "label": project_name, "group": "project"})
             seen_projects.add(project_name)
@@ -65,11 +76,15 @@ def traceability_graph():
 
 @router.get("/graph", response_class=HTMLResponse)
 def graph_page(request: Request):
+    """Traceability graph page."""
     return templates.TemplateResponse("graph.html", {"request": request})
 
 
+# --- One record and its neighbours -------------------------------------------
+
 @router.get("/api/graph/{record_id}")
 def record_graph(record_id: str):
+    """One record with the records directly above and below it in the chain."""
     record_type = detect_record_type(record_id)
     if not record_type:
         return JSONResponse({"error": "Unrecognised ID format"}, status_code=404)
@@ -81,6 +96,7 @@ def record_graph(record_id: str):
     seen = set()
 
     def add_node(node_id, group):
+        """Add a node unless it is already in the graph."""
         if node_id not in seen:
             nodes.append({"id": node_id, "label": node_id, "group": group})
             seen.add(node_id)
@@ -149,6 +165,8 @@ def record_graph(record_id: str):
     return JSONResponse({"nodes": nodes, "edges": edges})
 
 
+# --- Filter options ----------------------------------------------------------
+
 @router.get("/api/filters")
 def graph_filters():
     """
@@ -159,10 +177,12 @@ def graph_filters():
     cur = conn.cursor()
 
     def distinct(sql):
+        """Unique non-blank values from a one-column query."""
         cur.execute(sql)
         return [r[0] for r in cur.fetchall() if r[0] not in (None, "")]
 
     def value_range(sql):
+        """{'min', 'max'} from a MIN/MAX query, or None if there is no data."""
         cur.execute(sql)
         lo, hi = cur.fetchone()
         if lo is None or hi is None:

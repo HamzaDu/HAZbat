@@ -1,3 +1,9 @@
+"""Directory search, inventory tables and CSV / Excel export.
+
+Non-admin users only see records from their own projects (get_allowed_projects).
+Templates: search.html, inventory.html.
+"""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 import io
@@ -12,18 +18,21 @@ from services.records import detect_record_type
 router = APIRouter()
 
 
+# --- Directory search --------------------------------------------------------
+
 @router.get("/directory", response_class=HTMLResponse)
 def directory(request: Request, record_id: str = None):
+    """Search for one record by ID and show its details and linked records."""
     record = None
     record_type = None
     searched = record_id is not None
- 
+
     if record_id:
         record_type = detect_record_type(record_id)
         conn = get_connection()
         cur = conn.cursor()
         allowed = get_allowed_projects(request)  # None = admin, sees everything
- 
+
         if record_type == "material":
             cur.execute(
                 "SELECT chemistry, supplier, date_received, quantity_kg, location, availability, notes "
@@ -37,7 +46,7 @@ def directory(request: Request, record_id: str = None):
                 cur.execute("SELECT coating_id FROM tbl_coating WHERE material_id = %s", (record_id,))
                 downstream = [f"Coating: {r[0]}" for r in cur.fetchall()]
                 record["_chain"] = downstream if downstream else ["No downstream records yet"]
- 
+
         elif record_type == "coating":
             cur.execute(
                 "SELECT material_id, project, coating_date, made_by, coat_weight_gsm, porosity, notes "
@@ -50,11 +59,11 @@ def directory(request: Request, record_id: str = None):
                 row = None  # record belongs to a project this user can't see
             if row:
                 record = dict(zip(columns, row))
- 
+
                 cur.execute("SELECT chemistry FROM tbl_materials WHERE material_id = %s", (record["material_id"],))
                 mat = cur.fetchone()
                 upstream = [f"Material: {record['material_id']} ({mat[0] if mat else '?'})"]
- 
+
                 downstream = []
                 cur.execute("SELECT slp_id FROM tbl_slp WHERE coating_id = %s", (record_id,))
                 downstream += [f"SLP: {r[0]}" for r in cur.fetchall()]
@@ -62,9 +71,9 @@ def directory(request: Request, record_id: str = None):
                 downstream += [f"CoinCell: {r[0]}" for r in cur.fetchall()]
                 cur.execute("SELECT mlp_id FROM tbl_mlp WHERE cat_coating_id = %s OR an_coating_id = %s", (record_id, record_id))
                 downstream += [f"MLP: {r[0]}" for r in cur.fetchall()]
- 
+
                 record["_chain"] = upstream + (downstream if downstream else ["No downstream records yet"])
- 
+
         elif record_type == "slp":
             cur.execute(
                 "SELECT coating_id, project, date_made, made_by, electrolyte, formation_capacity, np_ratio, notes "
@@ -80,7 +89,7 @@ def directory(request: Request, record_id: str = None):
                 cur.execute("SELECT material_id FROM tbl_coating WHERE coating_id = %s", (record["coating_id"],))
                 mat = cur.fetchone()
                 record["_chain"] = [f"Coating: {record['coating_id']}", f"Material: {mat[0] if mat else '?'}"]
- 
+
         elif record_type == "coincell":
             cur.execute(
                 "SELECT coating_id, project, date_made, made_by, electrolyte, formation_capacity, cell_type, gsm, notes "
@@ -96,7 +105,7 @@ def directory(request: Request, record_id: str = None):
                 cur.execute("SELECT material_id FROM tbl_coating WHERE coating_id = %s", (record["coating_id"],))
                 mat = cur.fetchone()
                 record["_chain"] = [f"Coating: {record['coating_id']}", f"Material: {mat[0] if mat else '?'}"]
- 
+
         elif record_type == "mlp":
             cur.execute(
                 "SELECT cat_coating_id, an_coating_id, project, date_made, cell_capacity, electrolyte, ac_area_ratio "
@@ -115,26 +124,29 @@ def directory(request: Request, record_id: str = None):
                     mat = cur.fetchone()
                     chain.append(f"{label}: {cid} (material: {mat[0] if mat else '?'})")
                 record["_chain"] = chain
- 
+
         else:
             columns = []
- 
+
         if record_type and record_type not in ("coating", "material", "slp", "coincell", "mlp"):
             row = cur.fetchone()
             if row:
                 record = dict(zip(columns, row))
- 
+
         cur.close()
         conn.close()
- 
+
     return templates.TemplateResponse(
         "search.html",
         {"request": request, "record": record, "record_id": record_id, "record_type": record_type, "searched": searched}
     )
 
 
+# --- Inventory tables --------------------------------------------------------
+
 @router.get("/inventory/materials", response_class=HTMLResponse)
 def inventory_materials(request: Request):
+    """Table of all materials."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -144,7 +156,7 @@ def inventory_materials(request: Request):
     rows = cur.fetchall()
     cur.close()
     conn.close()
- 
+
     columns = ["Material ID", "Chemistry", "Supplier", "Date Received", "Quantity (kg)", "Location", "Availability"]
     return templates.TemplateResponse(
         "inventory.html",
@@ -152,9 +164,10 @@ def inventory_materials(request: Request):
          "new_url": "/materials/new", "bulk_url": "/materials/bulk-upload",
          "edit_url_base": "/materials"}
     )
- 
+
 @router.get("/inventory/coatings", response_class=HTMLResponse)
 def inventory_coatings(request: Request):
+    """Table of coatings in the projects this user can see."""
     conn = get_connection()
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
@@ -173,10 +186,11 @@ def inventory_coatings(request: Request):
          "new_url": "/coatings/new", "bulk_url": "/coatings/bulk-upload",
          "edit_url_base": "/coatings"}
     )
- 
- 
+
+
 @router.get("/inventory/slp", response_class=HTMLResponse)
 def inventory_slp(request: Request):
+    """Table of SLP cells in the projects this user can see."""
     conn = get_connection()
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
@@ -194,9 +208,10 @@ def inventory_slp(request: Request):
         {"request": request, "title": "SLP Cells", "columns": columns, "rows": rows,
          "new_url": "/slp/new","edit_url_base": "/slp" ,"bulk_url": "/slp/bulk-upload"}
     )
- 
+
 @router.get("/inventory/coincell", response_class=HTMLResponse)
 def inventory_coincell(request: Request):
+    """Table of coin cells in the projects this user can see."""
     conn = get_connection()
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
@@ -214,10 +229,11 @@ def inventory_coincell(request: Request):
         {"request": request, "title": "Coin Cells", "columns": columns, "rows": rows,
          "new_url": "/coincell/new", "bulk_url": "/coincell/bulk-upload"}
     )
- 
- 
+
+
 @router.get("/inventory/mlp", response_class=HTMLResponse)
 def inventory_mlp(request: Request):
+    """Table of MLP cells in the projects this user can see."""
     conn = get_connection()
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
@@ -235,7 +251,7 @@ def inventory_mlp(request: Request):
         {"request": request, "title": "MLP Cells", "columns": columns, "rows": rows,
          "new_url": "/mlp/new", "bulk_url": "/mlp/bulk-upload"}
     )
- 
+
 
 # --- Export an inventory table to CSV or Excel --------------------------------
 # URL key -> (table, ID column used for sorting, sheet/file name)
@@ -251,6 +267,7 @@ EXPORT_BLANK = "N/A"  # empty cells are written as N/A (bulk upload reads N/A ba
 
 @router.get("/inventory/{table_key}/export")
 def export_inventory(request: Request, table_key: str, format: str = "csv"):
+    """Download a whole table as CSV or Excel, in a layout Bulk Upload can read back in."""
     redirect = require_login(request)
     if redirect:
         return redirect

@@ -1,3 +1,9 @@
+"""Record cards: one lookup shared by /card, /api/card, the graph side panel and the lineage page.
+
+CARD_FIELDS says which columns each record type shows and with what label.
+PANEL_FIELDS picks the six quick-view fields for cells in the graph panel.
+"""
+
 import io
 
 import qrcode

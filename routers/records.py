@@ -1,3 +1,11 @@
+"""Creating records: the "New material / coating / SLP / coin cell / MLP" forms.
+
+Each record type has a GET (show the form) and a POST (check and save it).
+The plain POST /materials, /coatings, ... endpoints are the older JSON versions
+that take query parameters; the website itself uses the /new forms.
+Templates: new_material.html, new_coating.html, new_slp.html, new_coincell.html, new_mlp.html.
+"""
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
@@ -9,8 +17,11 @@ from services.forms import clean_optional_fields, coating_electrode, form_state,
 router = APIRouter()
 
 
+# --- Materials ---------------------------------------------------------------
+
 @router.get("/materials/new", response_class=HTMLResponse)
 def new_material_form(request: Request):
+    """New material form."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -21,6 +32,7 @@ def new_material_form(request: Request):
 def submit_material_form(request: Request, material_id: str = Form(...), chemistry: str = Form(...), supplier: str = Form(...),
                          date_received: str = Form(None), quantity_kg: str = Form(None), location: str = Form(None),
                          availability: str = Form(None), notes: str = Form(None)):
+    """Check and save a new material (ID must be uppercase and start with CAT- or AN-)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -49,19 +61,20 @@ def submit_material_form(request: Request, material_id: str = Form(...), chemist
 
 @router.post("/materials")
 def create_material(material_id: str, chemistry: str, supplier: str):
+    """Older JSON endpoint: add a material from query parameters."""
     material_id = material_id.strip()
     chemistry = chemistry.strip()
     supplier = supplier.strip()
- 
+
     if not material_id or not chemistry or not supplier:
         return {"status": "error", "detail": "All fields are required and cannot be blank."}
- 
+
     if material_id != material_id.upper():
         return {"status": "error", "detail": f"Material ID must be uppercase. Try: {material_id.upper()}"}
- 
+
     if not (material_id.startswith("CAT-") or material_id.startswith("AN-")):
         return {"status": "error", "detail": "Material ID must start with 'CAT-' or 'AN-'."}
- 
+
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -78,20 +91,23 @@ def create_material(material_id: str, chemistry: str, supplier: str):
     cur.close()
     conn.close()
     return {"status": "created", "material_id": material_id}
- 
+
+# --- Coatings ----------------------------------------------------------------
+
 @router.post("/coatings")
 def create_coating(coating_id: str, material_id: str, project: str, made_by: str):
+    """Older JSON endpoint: add a coating from query parameters."""
     coating_id = coating_id.strip()
     material_id = material_id.strip()
     project = project.strip()
     made_by = made_by.strip()
- 
+
     if not coating_id or not material_id or not project or not made_by:
         return {"status": "error", "detail": "All fields are required and cannot be blank."}
- 
+
     if coating_id != coating_id.upper():
         return {"status": "error", "detail": f"Coating ID must be uppercase. Try: {coating_id.upper()}"}
- 
+
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -108,18 +124,20 @@ def create_coating(coating_id: str, material_id: str, project: str, made_by: str
     cur.close()
     conn.close()
     return {"status": "created", "coating_id": coating_id}
- 
+
 @router.get("/coatings/new", response_class=HTMLResponse)
 def new_coating_form(request: Request):
+    """New coating form."""
     redirect = require_login(request)
     if redirect:
         return redirect
     return templates.TemplateResponse("new_coating.html", {"request": request, **load_form_options()})
- 
- 
+
+
 @router.post("/coatings/new", response_class=HTMLResponse)
 def submit_coating_form(request: Request, coating_id: str = Form(...), material_id: str = Form(...), project: str = Form(...), made_by: str = Form(...),
                         coating_date: str = Form(None), coat_weight_gsm: str = Form(None), porosity: str = Form(None), notes: str = Form(None)):
+    """Check and save a new coating (its material must already exist)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -145,19 +163,22 @@ def submit_coating_form(request: Request, coating_id: str = Form(...), material_
 
     return templates.TemplateResponse("new_coating.html", {"request": request, "error": error, "success": success, "form": form, **load_form_options()})
 
+# --- SLP cells ---------------------------------------------------------------
+
 @router.post("/slp")
 def create_slp(slp_id: str, coating_id: str, project: str, made_by: str):
+    """Older JSON endpoint: add an SLP cell from query parameters."""
     slp_id = slp_id.strip()
     coating_id = coating_id.strip()
     project = project.strip()
     made_by = made_by.strip()
- 
+
     if not slp_id or not coating_id or not project or not made_by:
         return {"status": "error", "detail": "All fields are required and cannot be blank."}
- 
+
     if slp_id != slp_id.upper():
         return {"status": "error", "detail": f"SLP ID must be uppercase. Try: {slp_id.upper()}"}
- 
+
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -174,18 +195,20 @@ def create_slp(slp_id: str, coating_id: str, project: str, made_by: str):
     cur.close()
     conn.close()
     return {"status": "created", "slp_id": slp_id}
- 
+
 @router.get("/slp/new", response_class=HTMLResponse)
 def new_slp_form(request: Request):
+    """New SLP cell form."""
     redirect = require_login(request)
     if redirect:
         return redirect
     return templates.TemplateResponse("new_slp.html", {"request": request, **load_form_options()})
- 
+
 @router.post("/slp/new", response_class=HTMLResponse)
 def submit_slp_form(request: Request, slp_id: str = Form(...), coating_id: str = Form(...), project: str = Form(...), made_by: str = Form(...),
                     formation_capacity: str = Form(None), date_made: str = Form(None), electrolyte: str = Form(None),
                     np_ratio: str = Form(None), notes: str = Form(None)):
+    """Check and save a new SLP cell (its coating must already exist)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -212,19 +235,22 @@ def submit_slp_form(request: Request, slp_id: str = Form(...), coating_id: str =
 
     return templates.TemplateResponse("new_slp.html", {"request": request, "error": error, "success": success, "form": form, **load_form_options()})
 
+# --- Coin cells --------------------------------------------------------------
+
 @router.post("/coincell")
 def create_coincell(coincell_id: str, coating_id: str, project: str, made_by: str):
+    """Older JSON endpoint: add a coin cell from query parameters."""
     coincell_id = coincell_id.strip()
     coating_id = coating_id.strip()
     project = project.strip()
     made_by = made_by.strip()
- 
+
     if not coincell_id or not coating_id or not project or not made_by:
         return {"status": "error", "detail": "All fields are required and cannot be blank."}
- 
+
     if coincell_id != coincell_id.upper():
         return {"status": "error", "detail": f"CoinCell ID must be uppercase. Try: {coincell_id.upper()}"}
- 
+
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -241,19 +267,21 @@ def create_coincell(coincell_id: str, coating_id: str, project: str, made_by: st
     cur.close()
     conn.close()
     return {"status": "created", "coincell_id": coincell_id}
- 
+
 @router.get("/coincell/new", response_class=HTMLResponse)
 def new_coincell_form(request: Request):
+    """New coin cell form."""
     redirect = require_login(request)
     if redirect:
         return redirect
     return templates.TemplateResponse("new_coincell.html", {"request": request, **load_form_options()})
- 
- 
+
+
 @router.post("/coincell/new", response_class=HTMLResponse)
 def submit_coincell_form(request: Request, coincell_id: str = Form(...), coating_id: str = Form(...), project: str = Form(...), made_by: str = Form(...),
                          date_made: str = Form(None), electrolyte: str = Form(None), formation_capacity: str = Form(None),
                          cell_type: str = Form(None), gsm: str = Form(None), notes: str = Form(None)):
+    """Check and save a new coin cell (its coating must already exist)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -280,19 +308,22 @@ def submit_coincell_form(request: Request, coincell_id: str = Form(...), coating
 
     return templates.TemplateResponse("new_coincell.html", {"request": request, "error": error, "success": success, "form": form, **load_form_options()})
 
+# --- MLP cells ---------------------------------------------------------------
+
 @router.post("/mlp")
 def create_mlp(mlp_id: str, cat_coating_id: str, an_coating_id: str, project: str):
+    """Older JSON endpoint: add an MLP cell from query parameters."""
     mlp_id = mlp_id.strip()
     cat_coating_id = cat_coating_id.strip()
     an_coating_id = an_coating_id.strip()
     project = project.strip()
- 
+
     if not mlp_id or not cat_coating_id or not an_coating_id or not project:
         return {"status": "error", "detail": "All fields are required and cannot be blank."}
- 
+
     if mlp_id != mlp_id.upper():
         return {"status": "error", "detail": f"MLP ID must be uppercase. Try: {mlp_id.upper()}"}
- 
+
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -309,19 +340,21 @@ def create_mlp(mlp_id: str, cat_coating_id: str, an_coating_id: str, project: st
     cur.close()
     conn.close()
     return {"status": "created", "mlp_id": mlp_id}
- 
+
 @router.get("/mlp/new", response_class=HTMLResponse)
 def new_mlp_form(request: Request):
+    """New MLP cell form."""
     redirect = require_login(request)
     if redirect:
         return redirect
     return templates.TemplateResponse("new_mlp.html", {"request": request, **load_form_options()})
- 
- 
+
+
 @router.post("/mlp/new", response_class=HTMLResponse)
 def submit_mlp_form(request: Request, mlp_id: str = Form(...), cat_coating_id: str = Form(...), an_coating_id: str = Form(...), project: str = Form(...),
                     date_made: str = Form(None), electrolyte: str = Form(None), cell_capacity: str = Form(None),
                     ac_area_ratio: str = Form(None)):
+    """Check and save a new MLP cell (needs one cathode and one anode coating)."""
     redirect = require_login(request)
     if redirect:
         return redirect

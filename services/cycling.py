@@ -1,7 +1,12 @@
+"""Reading BioLogic .mpr cycling files with galvani (routers/cycling.py).
+
+Files are saved in uploads/cycling_data/ and listed in tbl_cycling_data.
+Each file is split into half-cycles (charge or discharge) for the voltage curves.
+"""
+
 from core.db import get_connection
 
 
-# --- Voltage curves from cycling files ----------------------------------------
 VOLTAGE_COLUMNS = ("Ewe/V", "Ecell/V", "<Ewe>/V")   # BioLogic names, first one found is used
 MAX_POINTS_PER_CURVE = 400                          # keeps the JSON small for long files
 

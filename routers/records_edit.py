@@ -1,3 +1,10 @@
+"""Editing and deleting records (materials, coatings, SLP cells).
+
+Delete is admin only, and fails if other records still link to the one being deleted.
+Coin cells and MLPs have no edit page yet.
+Templates: edit_material.html, edit_coating.html, edit_slp.html.
+"""
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -8,8 +15,11 @@ from core.templates import templates
 router = APIRouter()
 
 
+# --- Materials ---------------------------------------------------------------
+
 @router.get("/materials/{material_id}/edit", response_class=HTMLResponse)
 def edit_material_form(request: Request, material_id: str):
+    """Edit form for one material."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -34,6 +44,7 @@ def edit_material_form(request: Request, material_id: str):
 
 @router.post("/materials/{material_id}/edit", response_class=HTMLResponse)
 def submit_edit_material(request: Request, material_id: str, chemistry: str = Form(...), supplier: str = Form(...)):
+    """Save a material's new chemistry and supplier."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -66,6 +77,7 @@ def submit_edit_material(request: Request, material_id: str, chemistry: str = Fo
 
 @router.post("/materials/{material_id}/delete")
 def delete_material(request: Request, material_id: str):
+    """Delete a material (admins only; fails if coatings still use it)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -86,8 +98,11 @@ def delete_material(request: Request, material_id: str):
     cur.close()
     conn.close()
     return RedirectResponse(url="/inventory/materials", status_code=303)
+# --- Coatings ----------------------------------------------------------------
+
 @router.get("/coatings/{coating_id}/edit", response_class=HTMLResponse)
 def edit_coating_form(request: Request, coating_id: str):
+    """Edit form for one coating."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -112,6 +127,7 @@ def edit_coating_form(request: Request, coating_id: str):
 
 @router.post("/coatings/{coating_id}/edit", response_class=HTMLResponse)
 def submit_edit_coating(request: Request, coating_id: str, made_by: str = Form(...), coat_weight_gsm: str = Form(None), porosity: str = Form(None)):
+    """Save a coating's made-by, coat weight and porosity."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -144,6 +160,7 @@ def submit_edit_coating(request: Request, coating_id: str, made_by: str = Form(.
 
 @router.post("/coatings/{coating_id}/delete")
 def delete_coating(request: Request, coating_id: str):
+    """Delete a coating (admins only; fails if cells still use it)."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -165,8 +182,11 @@ def delete_coating(request: Request, coating_id: str):
     conn.close()
     return RedirectResponse(url="/inventory/coatings", status_code=303)
 
+# --- SLP cells ---------------------------------------------------------------
+
 @router.get("/slp/{slp_id}/edit", response_class=HTMLResponse)
 def edit_slp_form(request: Request, slp_id: str):
+    """Edit form for one SLP cell."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -191,6 +211,7 @@ def edit_slp_form(request: Request, slp_id: str):
 
 @router.post("/slp/{slp_id}/edit", response_class=HTMLResponse)
 def submit_edit_slp(request: Request, slp_id: str, made_by: str = Form(...), electrolyte: str = Form(None), formation_capacity: str = Form(None)):
+    """Save an SLP cell's made-by, electrolyte and formation capacity."""
     redirect = require_login(request)
     if redirect:
         return redirect
@@ -223,6 +244,7 @@ def submit_edit_slp(request: Request, slp_id: str, made_by: str = Form(...), ele
 
 @router.post("/slp/{slp_id}/delete")
 def delete_slp(request: Request, slp_id: str):
+    """Delete an SLP cell (admins only)."""
     redirect = require_login(request)
     if redirect:
         return redirect
