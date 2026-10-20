@@ -29,9 +29,11 @@ BMAC is a full-chain traceability database for battery research labs. It tracks 
 ```
 tbl_materials
     └── tbl_coating
-            ├── tbl_slp        (single-layer pouch)
+        └──tbl_cell 
+        e.g ├── tbl_slp        (single-layer pouch)
             ├── tbl_coincell   (coin cell, e.g. CR2032 half cell)
-            └── tbl_mlp        (multi-layer pouch — two coatings: cathode + anode)
+            ├── tbl_mlp        (multi-layer pouch — two coatings: cathode + anode)
+            └── etc.
 ```
 
 ---
