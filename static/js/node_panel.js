@@ -8,11 +8,14 @@
 // The panel only opens for cells (SLP, coin cell, MLP). It reads /api/card/{id}
 // and, if the cell has cycling data, /api/cycling/{id}/summary for state of health.
 (function () {
-    const CELL_TYPES = {
+    const NODE_TYPES = {
         slp:      { label: 'SLP',       colour: 'var(--hz-slp)' },
         coincell: { label: 'Coin cell', colour: 'var(--hz-coincell)' },
         mlp:      { label: 'MLP',       colour: 'var(--hz-mlp)' },
+        material: { label: 'Material',  colour: 'var(--hz-material)' },
+        coating:  { label: 'Coating',   colour: 'var(--hz-coating)' },
     };
+
     const BLANK = '—';
     let currentId = null;  // ignore slow replies for a node that is no longer selected
 
@@ -40,7 +43,7 @@
 
     function render(data) {
         const p = data.panel;
-        const type = CELL_TYPES[data.record_type];
+        const type = NODE_TYPES[data.record_type];
         const id = esc(data.record_id);
 
         const rows = p.fields.map(([label, value]) =>
@@ -114,7 +117,7 @@
             return;
         }
         if (currentId !== recordId) return;          // another node was clicked meanwhile
-        if (!data.panel || !CELL_TYPES[data.record_type]) { hide(); return; }  // cells only
+        if (!data.panel || !NODE_TYPES[data.record_type]) { hide(); return; }
         render(data);
         loadStateOfHealth(recordId);
     }
