@@ -37,7 +37,7 @@ def get_connection():
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         return psycopg2.connect(database_url)
-    return psycopg2.connect(dbname="bmac", user="hazma", host="localhost")
+    return psycopg2.connect(dbname="hazbat", user="ed_hzj", host="localhost")
  
 def require_login(request: Request):
     if not request.session.get("user_id"):
