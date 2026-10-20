@@ -91,6 +91,7 @@ CAT-NMC-001             ← cathode material, NMC chemistry, batch 001
 CAT-NMC-001-C001        ← first coating of that material
 CAT-NMC-001-C001-CC01   ← first coin cell from that coating
 CAT-NMC-001-C001-SLP-01 ← first SLP from that coating
+```
 
 
 Prefix conventions:
