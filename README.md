@@ -2,7 +2,6 @@
 
 
 
-**Live demo:** https://hazbat-production.up.railway.app
 
 Developed by the **Battery Materials & Cells Group**, WMG, University of Warwick.
 
