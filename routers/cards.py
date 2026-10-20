@@ -63,20 +63,30 @@ def card_data(record_id: str):
     conn = get_connection()
     cur = conn.cursor()
     record, chain = fetch_card_record(cur, record_type, record_id)
-    panel = None
-    if record and record_type in CELL_TYPES:
-        panel = {
-            "fields": panel_fields(cur, record_type, record),
-            "qr_url": f"/qr/{record_id}.png",
-            "card_url": f"/card/{record_id}",
-            "lineage_url": f"/card/{record_id}/lineage",
-        }
+    
+    if not record:
+        cur.close()
+        conn.close()
+        return JSONResponse({"error": "Record not found"}, status_code=404)
+
+    # Stringify all values first so date/Decimal types are safe for both
+    # panel fields and the final JSON response.
+    record = {k: (str(v) if v is not None else "N/A") for k, v in record.items()}
+
+    is_cell = record_type in CELL_TYPES
+    panel = {
+        # Cells: use panel_fields() for curated display order/labels.
+        # Materials & coatings: fall back to the raw (already stringified) record dict.
+        "fields": panel_fields(cur, record_type, record) if is_cell
+                  else [[k.replace("_", " ").title(), v] for k, v in record.items()],
+        "qr_url":      f"/qr/{record_id}.png",
+        "card_url":    f"/card/{record_id}",
+        "lineage_url": f"/card/{record_id}/lineage" if is_cell else None,
+    }
+
     cur.close()
     conn.close()
 
-    if not record:
-        return JSONResponse({"error": "Record not found"}, status_code=404)
 
-    record = {k: (str(v) if v is not None else "N/A") for k, v in record.items()}
     return JSONResponse({"record_id": record_id, "record_type": record_type,
                          "record": record, "chain": chain, "panel": panel})

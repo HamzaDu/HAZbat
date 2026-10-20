@@ -34,7 +34,8 @@ INSERT INTO tbl_projects (project_name, active) VALUES
     ('FAST', TRUE),
     ('Shared', TRUE);
 
-    CREATE TABLE tbl_slp (
+
+CREATE TABLE tbl_slp (
     slp_id              TEXT PRIMARY KEY,
     coating_id           TEXT NOT NULL REFERENCES tbl_coating(coating_id),
     project               TEXT REFERENCES tbl_projects(project_name),
