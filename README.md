@@ -52,33 +52,13 @@ Page for every component showing:
 CSV or Excel upload for all five record types. Column names are case-insensitive.
 
 ### Traceability graph
-A full `vis.js` force-directed network of every record and their relationships. Clicking any node highlights its complete upstream (ancestors) and downstream (descendants) path with a pulsing edge animation, and opens a quick-view side panel showing key fields, QR code, and state of health.
+A full `vis.js` force-directed network of every record and their relationships. Clicking any node highlights its complete upstream (ancestors) and downstream (descendants) path with a pulsing edge animation, and opens a quick-view side panel showing key fields, and QR code.
 
 ### Cycling data viewer
 Upload a BioLogic `.mpr` file and attach it to any cell record. The graph page and lineage card then show:
 - Discharge capacity per cycle (capacity fade)
 - Coulombic efficiency per cycle
 - Voltage vs. capacity curves, selectable by cycle, normalised by electrode area
-
----
-
-## Database schema
-
-Six core tables plus two supporting ones:
-
-```
-tbl_projects        — project names; referenced by all record tables
-tbl_materials       — raw electrode powders (chemistry, supplier, quantity)
-tbl_coating         — coated electrodes (links to material, GSM, porosity)
-tbl_slp             — single-layer pouch cells (links to one coating)
-tbl_coincell        — coin cells, e.g. CR2032 (links to one coating)
-tbl_mlp             — multi-layer pouch cells (links to cathode + anode coating)
-tbl_users           — user accounts (bcrypt-hashed passwords, admin flag)
-tbl_user_projects   — which projects each non-admin user can see
-tbl_cycling_data    — uploaded BioLogic .mpr files, linked by record_id
-```
-
-See `schema.sql` for the full DDL including FK constraints.
 
 ---
 
@@ -97,6 +77,7 @@ CAT-NMC-001-C001-SLP-01 ← first SLP from that coating
 Prefix conventions:
 - `CAT-` — cathode material
 - `AN-` — anode material
+
 - `SLP-` — single-layer pouch cell
 - `CC-` — coin cell
 - `MLP-` — multi-layer pouch cell
