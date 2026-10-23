@@ -5,7 +5,7 @@ Templates: search.html, inventory.html.
 """
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 import io
 
 import pandas as pd
@@ -23,13 +23,16 @@ router = APIRouter()
 @router.get("/directory", response_class=HTMLResponse)
 def directory(request: Request, record_id: str = None):
     """Search for one record by ID and show its details and linked records."""
+    redirect = require_login(request)
+    if redirect:
+        return redirect
     record = None
     record_type = None
     searched = record_id is not None
 
     if record_id:
         record_type = detect_record_type(record_id)
-        conn = get_connection()
+        conn = get_connection(read_only=True)
         cur = conn.cursor()
         allowed = get_allowed_projects(request)  # None = admin, sees everything
 
@@ -137,8 +140,8 @@ def directory(request: Request, record_id: str = None):
         conn.close()
 
     return templates.TemplateResponse(
-        "search.html",
-        {"request": request, "record": record, "record_id": record_id, "record_type": record_type, "searched": searched}
+        request, "search.html",
+        {"record": record, "record_id": record_id, "record_type": record_type, "searched": searched}
     )
 
 
@@ -147,7 +150,10 @@ def directory(request: Request, record_id: str = None):
 @router.get("/inventory/materials", response_class=HTMLResponse)
 def inventory_materials(request: Request):
     """Table of all materials."""
-    conn = get_connection()
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    conn = get_connection(read_only=True)
     cur = conn.cursor()
     cur.execute(
         "SELECT material_id, chemistry, supplier, date_received, quantity_kg, location, availability "
@@ -159,8 +165,8 @@ def inventory_materials(request: Request):
 
     columns = ["Material ID", "Chemistry", "Supplier", "Date Received", "Quantity (kg)", "Location", "Availability"]
     return templates.TemplateResponse(
-        "inventory.html",
-        {"request": request, "title": "Materials", "columns": columns, "rows": rows,
+        request, "inventory.html",
+        {"title": "Materials", "columns": columns, "rows": rows,
          "new_url": "/materials/new", "bulk_url": "/materials/bulk-upload",
          "edit_url_base": "/materials"}
     )
@@ -168,7 +174,10 @@ def inventory_materials(request: Request):
 @router.get("/inventory/coatings", response_class=HTMLResponse)
 def inventory_coatings(request: Request):
     """Table of coatings in the projects this user can see."""
-    conn = get_connection()
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    conn = get_connection(read_only=True)
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
     where, params = ("", ()) if allowed is None else (" WHERE project = ANY(%s)", (list(allowed),))
@@ -181,8 +190,8 @@ def inventory_coatings(request: Request):
     conn.close()
     columns = ["Coating ID", "Material ID", "Project", "Coating Date", "Made By", "GSM", "Porosity"]
     return templates.TemplateResponse(
-        "inventory.html",
-        {"request": request, "title": "Coatings", "columns": columns, "rows": rows,
+        request, "inventory.html",
+        {"title": "Coatings", "columns": columns, "rows": rows,
          "new_url": "/coatings/new", "bulk_url": "/coatings/bulk-upload",
          "edit_url_base": "/coatings"}
     )
@@ -191,7 +200,10 @@ def inventory_coatings(request: Request):
 @router.get("/inventory/slp", response_class=HTMLResponse)
 def inventory_slp(request: Request):
     """Table of SLP cells in the projects this user can see."""
-    conn = get_connection()
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    conn = get_connection(read_only=True)
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
     where, params = ("", ()) if allowed is None else (" WHERE project = ANY(%s)", (list(allowed),))
@@ -204,15 +216,18 @@ def inventory_slp(request: Request):
     conn.close()
     columns = ["SLP ID", "Coating ID", "Project", "Date Made", "Made By", "Electrolyte", "Formation Capacity"]
     return templates.TemplateResponse(
-        "inventory.html",
-        {"request": request, "title": "SLP Cells", "columns": columns, "rows": rows,
+        request, "inventory.html",
+        {"title": "SLP Cells", "columns": columns, "rows": rows,
          "new_url": "/slp/new","edit_url_base": "/slp" ,"bulk_url": "/slp/bulk-upload"}
     )
 
 @router.get("/inventory/coincell", response_class=HTMLResponse)
 def inventory_coincell(request: Request):
     """Table of coin cells in the projects this user can see."""
-    conn = get_connection()
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    conn = get_connection(read_only=True)
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
     where, params = ("", ()) if allowed is None else (" WHERE project = ANY(%s)", (list(allowed),))
@@ -225,8 +240,8 @@ def inventory_coincell(request: Request):
     conn.close()
     columns = ["Coin Cell ID", "Coating ID", "Project", "Date Made", "Made By", "Electrolyte", "Formation Capacity"]
     return templates.TemplateResponse(
-        "inventory.html",
-        {"request": request, "title": "Coin Cells", "columns": columns, "rows": rows,
+        request, "inventory.html",
+        {"title": "Coin Cells", "columns": columns, "rows": rows,
          "new_url": "/coincell/new", "bulk_url": "/coincell/bulk-upload"}
     )
 
@@ -234,7 +249,10 @@ def inventory_coincell(request: Request):
 @router.get("/inventory/mlp", response_class=HTMLResponse)
 def inventory_mlp(request: Request):
     """Table of MLP cells in the projects this user can see."""
-    conn = get_connection()
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    conn = get_connection(read_only=True)
     cur = conn.cursor()
     allowed = get_allowed_projects(request)  # None = admin, sees everything
     where, params = ("", ()) if allowed is None else (" WHERE project = ANY(%s)", (list(allowed),))
@@ -247,8 +265,8 @@ def inventory_mlp(request: Request):
     conn.close()
     columns = ["MLP ID", "Cathode Coating", "Anode Coating", "Project", "Date Made", "Cell Capacity"]
     return templates.TemplateResponse(
-        "inventory.html",
-        {"request": request, "title": "MLP Cells", "columns": columns, "rows": rows,
+        request, "inventory.html",
+        {"title": "MLP Cells", "columns": columns, "rows": rows,
          "new_url": "/mlp/new", "bulk_url": "/mlp/bulk-upload"}
     )
 
@@ -275,7 +293,7 @@ def export_inventory(request: Request, table_key: str, format: str = "csv"):
         return HTMLResponse("Unknown table or format.", status_code=404)
     table, id_column, name = EXPORT_TABLES[table_key]
 
-    conn = get_connection()
+    conn = get_connection(read_only=True)
     cur = conn.cursor()
     try:
         # Every column, so the file has all fields and can be re-uploaded through Bulk Upload.
@@ -321,3 +339,68 @@ def export_inventory(request: Request, table_key: str, format: str = "csv"):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
+
+
+# --- Records as JSON (used by the MCP interface) -------------------------------
+# URL key -> columns the "search" text is matched against (all text columns of that table)
+SEARCH_COLUMNS = {
+    "materials": ["material_id", "chemistry", "supplier", "location"],
+    "coatings":  ["coating_id", "material_id", "project", "made_by"],
+    "slp":       ["slp_id", "coating_id", "project", "made_by", "electrolyte"],
+    "coincell":  ["coincell_id", "coating_id", "project", "made_by", "electrolyte", "cell_type"],
+    "mlp":       ["mlp_id", "cat_coating_id", "an_coating_id", "project", "electrolyte"],
+}
+MAX_RECORDS = 200
+
+
+@router.get("/api/records/{table_key}")
+def list_records(request: Request, table_key: str, search: str = "", project: str = "", limit: int = 50, offset: int = 0):
+    """One table's rows as JSON, sorted by ID. search matches part of an ID or text column
+    (ignoring case); project is an exact match. Non-admins only get their own projects."""
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    if table_key not in EXPORT_TABLES:
+        return JSONResponse({"error": "Unknown table"}, status_code=404)
+    table, id_column, name = EXPORT_TABLES[table_key]
+    limit = max(1, min(limit, MAX_RECORDS))
+    offset = max(0, offset)
+
+    conditions = []
+    params = []
+    if table != "tbl_materials":  # materials have no project column
+        allowed = get_allowed_projects(request)  # None = admin, sees everything
+        if allowed is not None:
+            conditions.append("project = ANY(%s)")
+            params.append(list(allowed))
+        if project:
+            conditions.append("project = %s")
+            params.append(project)
+    if search:
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        matches = []
+        for column in SEARCH_COLUMNS[table_key]:
+            matches.append(f"{column} ILIKE %s")
+            params.append("%" + escaped + "%")
+        conditions.append("(" + " OR ".join(matches) + ")")
+
+    where = ""
+    if conditions:
+        where = " WHERE " + " AND ".join(conditions)
+
+    conn = get_connection(read_only=True)
+    cur = conn.cursor()
+    try:
+        # Table and column names come from EXPORT_TABLES and SEARCH_COLUMNS above, never from the user.
+        # One extra row is fetched to tell whether there is another page.
+        cur.execute(f"SELECT * FROM {table}{where} ORDER BY {id_column} LIMIT %s OFFSET %s", params + [limit + 1, offset])
+        columns = [d[0] for d in cur.description]
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    records = []
+    for row in rows[:limit]:
+        records.append(dict(zip(columns, row)))
+    return {"type": table_key, "limit": limit, "offset": offset, "more": len(rows) > limit, "rows": records}
